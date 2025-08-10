@@ -147,8 +147,7 @@ search_memory = mem_agent.as_tool(tool_name="searchMemory", tool_description="Se
 
 
 # ---- Core Agent Tools ----
-@function_tool(name_override="rollDice")
-def roll(formula: str) -> dict:
+def roll_impl(formula: str) -> dict:
     """
     Dice roller for game mechanics.
 
@@ -171,6 +170,9 @@ def roll(formula: str) -> dict:
     rolls = [random.randint(1, sides) for _ in range(n)]
     total = sum(rolls) + mod
     return {"rolls": rolls, "mod": mod, "total": total}
+
+# Wrap it as an Agents tool for the DM to use
+roll = function_tool(name_override="rollDice")(roll_impl)
 
 # @function_tool(name_override="commitMemory")
 # def commit_memory(items: list[EpisodicMemory]) -> dict:
