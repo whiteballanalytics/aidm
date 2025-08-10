@@ -48,7 +48,7 @@ You are a fair but imaginative Dungeon Master.
     {
       "type": "event|preference|relationship|quest_update|lore_use",
       "keys": ["NPCName", "Place", "Item"],
-      "summary": "Concise update for long-term memory."
+      "summary": "Concise update for long-term memory capturing all key facts."
     }
   ]
 }
