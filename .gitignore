@@ -1,6 +1,17 @@
+# Local Python
 __pycache__/
 .vscode/
-venv/
-.env
 *.pyc
 *.pyo
+
+# Secrets / environments
+.env
+venv/
+
+# Raw data (don’t commit your world docs)
+raw_data/
+!data/README.md
+!data/worlds/**/.gitkeep
+
+# Vector store config is per-environment
+config/vectorstores.json

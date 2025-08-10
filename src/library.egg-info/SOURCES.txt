@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+src/main.py
+src/library/__init__.py
+src/library/vectorstores.py
+src/library.egg-info/PKG-INFO
+src/library.egg-info/SOURCES.txt
+src/library.egg-info/dependency_links.txt
+src/library.egg-info/top_level.txt
