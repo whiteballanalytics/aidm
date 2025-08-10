@@ -48,7 +48,7 @@ class LoreSearch(BaseModel):
     """
 
     vector_store_id: str
-    max_num_results: int = 6  # How many chunks/snippets to bring back per search
+    max_num_results: int = 8  # How many chunks/snippets to bring back per search
     include_search_results: bool = True  # let the model see snippets it retrieved
 
     @classmethod
@@ -127,7 +127,7 @@ class MemorySearch(BaseModel):
 
     campaign_id: str  # Logical name for the campaign this memory belongs to
     vector_store_id: str  # The actual OpenAI vector store id
-    max_num_results: int = 6  # How many memory chunks to retrieve per call
+    max_num_results: int = 12  # How many memory chunks to retrieve per call
     include_search_results: bool = True  # let the model see snippets it retrieved
     
     _client: OpenAI = PrivateAttr(default_factory=OpenAI)  # The OpenAI client instance used

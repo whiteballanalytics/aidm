@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 # Project-local
 from library.vectorstores import LoreSearch, MemorySearch, get_campaign_mem_store
+from library.prompts import load_prompt
 
 
 # --- USER / CAMPAIGN (temporary hard-codes for testing) ---
@@ -52,55 +53,8 @@ GLOBAL_TRACE_PROVIDER._multi_processor.force_flush()
 
 
 # ---- System Prompt for the Dungeon Master Agent ----
-DM_SYSTEM_PROMPT = """
-You are a fair but imaginative Dungeon Master.
+DM_SYSTEM_PROMPT = load_prompt("system", "dm_original.md")
 
-Style:
-- Cinematic but concise. Use sensory detail.
-- Prefer concrete nouns and strong verbs over flowery prose.
-- Keep narration 150 to 250 words.
-
-Your Tools:
-- When facts may exist in canon, call `searchLore`
-- If recalling prior promises, quests, relationships, or inventory effects could matter,
-  call the `searchMemory` (campaign-scoped long-term memory)
-- If you decide that a dice roll is needed, call `rollDice` - you will need to specify a formula like '1d20+3'
-
-Remember:
-- Players do not necessarily know the lore of the world, so they won't immeidately recongnise a place or person.
-- You may sometimes want feature clues about where they are, or possibly even words on signs, but usually you should just describe.
-- The places described in the Lore are often extremely far apart, and so they probably can't see two major regions at once.
-- Within sub-regions, it is possible that two major landmarks are close together, but they are not necessarily in the same scene.
-- This world is not empty, you should think about how many people or creature are in a scene, and what they are doing.
-- In a city the players are more likely to see crowds, in the wilderness creatures, and in a desert maybe none at all.
-
-Flow:
-- End each turn by stating:
-  (a) what just changed,
-  (b) obvious exits/affordances.
-
-Output contract:
-- After your prose, append a JSON block delimited by triple backticks with the shape:
-```json
-{
-  "scene_state_patch": {
-    "time_of_day": "...",        // optional
-    "region": "...",             // e.g. Dramatic Heights, Horroria
-    "sub_region": "...",         // e.g. Parallel Border, Action Atoll
-    "specific_location": "...",  // one sentence description of the place
-    "participants": ["...", ],   // specific NPCs should be listed separately, groups can be described
-    "exits": ["...", ].          // e.g. specific doors, paths, or directions the player could go
-  },
-  "turn_summary": "2 or 3 sentences of what changed this turn",
-  "memory_writes": [
-    {
-      "type": "event|preference|relationship|quest_update|lore_use",
-      "keys": ["NPCName","Place","Item"],
-      "summary": "Concise update for long-term memory."
-    }
-  ]
-}
-"""
 
 # ---- Define Data Classes ----
 # Used for short-term memory (scene state)
@@ -133,8 +87,11 @@ search_lore = lore_agent.as_tool(tool_name="searchLore",  tool_description="Sear
 
 # Long-term memory store
 mem_store_id = get_campaign_mem_store(client, CAMPAIGN_ID)
-mem = MemorySearch.from_id(campaign_id=CAMPAIGN_ID, vector_store_id=mem_store_id, client=client)\
-                  .with_mirror(Path(MEM_MIRROR_PATH) / CAMPAIGN_ID)
+mem = MemorySearch.from_id(
+    campaign_id = CAMPAIGN_ID,
+    vector_store_id = mem_store_id,
+    client = client
+).with_mirror(Path(MEM_MIRROR_PATH) / CAMPAIGN_ID)
 raw_memory_search_tool = mem.as_tool()
 
 mem_agent = Agent(
@@ -192,7 +149,7 @@ def dm_context_blob(scene_state: "SceneState", recent_recap: str) -> str:
     return (
         "DM CONTEXT\n"
         "SceneState JSON:\n" + json.dumps(scene_state.model_dump(), ensure_ascii=False) + "\n\n"
-        "Recent Recap (<=120 words):\n" + (recent_recap or "(none)") + "\n"
+        "Recent Recap (<=200 words):\n" + (recent_recap or "(none)") + "\n"
         "END CONTEXT\n"
     )
 
@@ -219,7 +176,7 @@ def merge_scene_patch(scene: "SceneState", patch: dict[str, Any]) -> "SceneState
             data[k] = v
     return SceneState(**data)
 
-def clip_recap(prev: str, turn_summary: str, limit_chars: int = 700) -> str:
+def clip_recap(prev: str, turn_summary: str, limit_chars: int = 4000) -> str:
     """Keep recap short and fresh."""
     rec = (prev + " " + (turn_summary or "")).strip()
     return rec[-limit_chars:] if len(rec) > limit_chars else rec
