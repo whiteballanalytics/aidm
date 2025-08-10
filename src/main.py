@@ -2,108 +2,255 @@ import asyncio
 import os
 from dotenv import load_dotenv
 import openai
-from agents import Agent, Runner, SQLiteSession, function_tool, InputGuardrail, GuardrailFunctionOutput
+from openai import OpenAI
+from agents import Agent, Runner, function_tool
 from agents import set_tracing_export_api_key
 from agents.tracing.setup import GLOBAL_TRACE_PROVIDER
+from library.vectorstores import LoreSearch, MemorySearch, ensure_campaign_mem_store
 from pydantic import BaseModel
-import random
+import random, re, json
+from typing import Any
+from datetime import datetime
+from pathlib import Path
+
+# --- USER / CAMPAIGN (temporary hard-codes for testing) ---
+USER_ID = "user_001"
+CAMPAIGN_ID = "camp_001"
+MEM_REGISTRY_PATH = "config/memorystores.json"
+MEM_MIRROR_PATH = "mirror/mem_mirror"
 
 # Load environment
 load_dotenv()
 
-# Set API keys
-openai.api_key = os.getenv("OPENAI_API_KEY")
-set_tracing_export_api_key = os.getenv("OPENAI_API_KEY")
+# Set OpenAI API key for the client
+AGENT_KEY = os.getenv("OPENAI_API_KEY_AGENT")
+if not AGENT_KEY:
+    raise RuntimeError("OPENAI_API_KEY_AGENT not set in environment")
+
+# Make sure every library that expects OPENAI_API_KEY can see it
+openai.api_key = AGENT_KEY
+os.environ["OPENAI_API_KEY"] = AGENT_KEY
+client = OpenAI(api_key=AGENT_KEY)
+
+# Pass API key to tracing setup (call the function, don't overwrite it)
+set_tracing_export_api_key(AGENT_KEY)
 
 GLOBAL_TRACE_PROVIDER._multi_processor.force_flush()
 
-session = SQLiteSession("dnd_campaign_001")
+# - Before resolving callbacks to prior sessions, call `readMemory`.
+# - After narrating, call `writeMemory` with distilled updates.
 
-class GuardrailOutput(BaseModel):
-    is_dnd: bool
-    reasoning: str
+DM_SYSTEM_PROMPT = """
+You are a fair but imaginative Dungeon Master.
 
-class RollDiceInput(BaseModel):
-    sides: int = 20
+Style:
+- Cinematic but concise. Use sensory detail.
+- Prefer concrete nouns and strong verbs over flowery prose.
+- Keep narration 150 to 250 words.
 
-dnd_gameplay_guardrail_agent = Agent(
-    name = "Guardrail check",
-    instructions = "Check if the user is saying something that makes sense in the context of a game of Dungeons and Dragons.",
-    output_type = GuardrailOutput
-)
+Canon & tools:
+- When facts may exist in canon, call `lore_search_tool`.
+- If recalling prior promises, quests, relationships, or inventory effects could matter,
+  call the `memory_search_tool` (campaign-scoped long-term memory).
+- If you decide that a dice roll is needed, call `roll` - you will need to specify a formula like '1d20+3'.
 
+Remember:
+- Players do not necessarily know the lore of the world, so they won't immeidately recongnise a place or person.
+- You may sometimes want feature clues about where they are, or possibly even words on signs, but usually you should just describe.
+- The places described in the Lore are often extremely far apart, and so they probably can't see two major regions at once.
+- Within sub-regions, it is possible that two major landmarks are close together, but they are not necessarily in the same scene.
+- This world is not empty, you should think about how many people or creature are in a scene, and what they are doing.
+- In a city the players are more likely to see crowds, in the wilderness creatures, and in a desert maybe none at all.
+
+Flow:
+- End each turn with:
+  (a) what just changed,
+  (b) obvious exits/affordances.
+
+Output contract:
+- After your prose, append a JSON block delimited by triple backticks with the shape:
+```json
+{
+  "scene_state_patch": {
+    "time_of_day": "...",        // optional
+    "region": "...",             // e.g. Dramatic Heights, Horroria
+    "sub_region": "...",         // e.g. Parallel Border, Action Atoll
+    "specific_location": "...",  // one sentence description of the place
+    "participants": ["...", ],   // specific NPCs should be listed separately, groups can be described
+    "exits": ["...", ].          // e.g. specific doors, paths, or directions the player could go
+  },
+  "turn_summary": "2 or 3 sentences of what changed this turn",
+  "memory_writes": [
+    {
+      "type": "event|preference|relationship|quest_update|lore_use",
+      "keys": ["NPCName","Place","Item"],
+      "summary": "Concise update for long-term memory."
+    }
+  ]
+}
+"""
+
+# ---- Define Data Classes ----
+class SceneState(BaseModel):
+    time_of_day: str
+    region: str
+    sub_region: str
+    specific_location: str
+    participants: list[str]
+    exits: list[str]
+
+class EpisodicMemory(BaseModel):
+    type: str  # "event" | "preference" | "relationship" | "quest_update" | "lore_use"
+    keys: list[str]
+    summary: str
+
+# ---- Vector store & memory backends (you provide these) ----
+lore = LoreSearch.set_lore(collection="Fiction")
+lore_search_tool = lore.as_tool()
+
+mem_store_id = ensure_campaign_mem_store(client, CAMPAIGN_ID)
+mem = MemorySearch.from_id(campaign_id=CAMPAIGN_ID, vector_store_id=mem_store_id, client=client)\
+                  .with_mirror(Path(MEM_MIRROR_PATH) / CAMPAIGN_ID)
+memory_search_tool = mem.as_tool()
+
+# ---- Tools ----
 @function_tool
-def roll_dice(sides: int = 20) -> int:
-    """Rolls a dice with the specified number of sides. Default is a D20."""
-    return random.randint(1, sides)
-
-@function_tool
-def get_next_action() -> str:
-    """Prompts the player for their next action in the game."""
-    return input("What do you want to do next? ")
-
-@function_tool
-async def do_saving_throw():
-    """Perform a saving throw and print the result."""
-    result = await Runner.run(savingthrow_agent, "Run a saving throw for the player.")
-    print("\n[Saving Throw Result]")
-    print(result.final_output)
-    return result.final_output
-
-@function_tool
-async def narrate_story():
-    """Create a narrative update and print it."""
-    result = await Runner.run(narrative_agent, "Describe the next part of the story.")
-    print("\n[Story Update]")
-    print(result.final_output)
-    return result.final_output
-
-savingthrow_agent = Agent(
-    name = "Saving throw agent",
-    handoff_description = "Specialist agent for doing saving throws if a player tries to do something non-trivial",
-    instructions = """
-    You simulate saving throws as per standard DnD 5e rule.
-    Decide an appropriate Difficulty Class (DC) and then role a dice to see whether the player passes.
-    """,
-    tools = [roll_dice]
-)
-
-narrative_agent = Agent(
-    name = "Narrative agent",
-    handoff_description = "Narrative agent for describing events",
-    instructions = """
-    You create narrative descriptions that explain what happens next in the game.
-    Reply with creative language in 1 paragraph or less.
-    Take into account the actions the player has taken and their success on saving throws.
+def roll(formula: str) -> dict:
     """
-)
+    Roll dice and apply simple modifiers, e.g., '1d20+3' or '5d8+3'.
+    """
+    m = re.fullmatch(r"(\d+)d(\d+)([+-]\d+)?", formula.replace(" ", ""))
+    if not m:
+        return {"error": "Bad formula"}
+    n, sides, mod = int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)
+    rolls = [random.randint(4, sides) for _ in range(n)]
+    total = sum(rolls) + mod
+    return {"rolls": rolls, "mod": mod, "total": total}
 
-async def dnd_gameplay_guardrail(ctx, agent, input_data):
-    result = await Runner.run(dnd_gameplay_guardrail_agent, input_data, context=ctx.context)
-    final_output = result.final_output_as(GuardrailOutput)
-    return GuardrailFunctionOutput(
-        output_info = final_output,
-        tripwire_triggered = not final_output.is_dnd
+# ---- Tools for Memory ----
+JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
+
+def dm_context_blob(scene_state: "SceneState", recent_recap: str) -> str:
+    """Compose a small, model-friendly context preface."""
+    return (
+        "DM CONTEXT\n"
+        "SceneState JSON:\n" + json.dumps(scene_state.model_dump(), ensure_ascii=False) + "\n\n"
+        "Recent Recap (<=120 words):\n" + (recent_recap or "(none)") + "\n"
+        "END CONTEXT\n"
     )
 
+def extract_update_payload(dm_text: str) -> dict[str, Any] | None:
+    """Pull the last ```json ... ``` block from the DM's reply."""
+    matches = list(JSON_BLOCK_RE.finditer(dm_text))
+    if not matches:
+        return None
+    raw = matches[-1].group(1)
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
+
+def strip_json_block(dm_text: str) -> str:
+    """Remove the trailing JSON block so only narration is shown to the player."""
+    return JSON_BLOCK_RE.sub("", dm_text).rstrip()
+
+def merge_scene_patch(scene: "SceneState", patch: dict[str, Any]) -> "SceneState":
+    """Shallow merge: if a field is present in patch, replace it in the scene."""
+    data = scene.model_dump()
+    for k, v in patch.items():
+        if v is not None:
+            data[k] = v
+    return SceneState(**data)
+
+def clip_recap(prev: str, turn_summary: str, limit_chars: int = 700) -> str:
+    """Keep recap short and fresh."""
+    rec = (prev + " " + (turn_summary or "")).strip()
+    return rec[-limit_chars:] if len(rec) > limit_chars else rec
+
+# ---- The Master Agent ----
 dm_agent = Agent(
     name = "The Dungeon Master",
-    instructions = """
-    You must decide which agent to hand off to, based on what the user has said.
-    The user is a player in a game of Dungeons and Dragons and you are acting as the DM.
-    If players say that they want to end the session then you have finished.
-    """,
-    tools = [get_next_action, do_saving_throw, narrate_story],
-    input_guardrails = [
-        InputGuardrail(guardrail_function=dnd_gameplay_guardrail)
-    ]
+    instructions = DM_SYSTEM_PROMPT,
+    tools = [lore_search_tool, memory_search_tool, roll]
 )
 
+# ---- Looping ----
+# async def aio_input(prompt: str = "") -> str:
+#     """Async-friendly wrapper around input()."""
+#     loop = asyncio.get_event_loop()
+#     return await loop.run_in_executor(None, lambda: input(prompt))
+
+async def aio_input(prompt: str = "") -> str:
+    # Runs blocking input() in a worker thread (Py 3.9+)
+    return await asyncio.to_thread(input, prompt)
+
 async def main():
-    esc = 0
-    while esc == 0:
-        user_input = input()
-        result = await Runner.run(dm_agent, user_input)
+    print("\n=== Dungeon Master — turn-based session ===")
+    print("Type '/quit' to exit.\n")
+
+    # Seed the world with an initial prompt (player's opening line)
+    seed = (await aio_input("Seed the world (e.g., 'I wake at dawn by the city gates'): ")).strip()
+    if not seed:
+        seed = "I open my eyes and see the words 'Metropolis of Mystery' in a garish font over the gates to a city."
+
+    user_text = seed
+
+    # --- Short-term memory state ---
+    scene_state = SceneState(
+        time_of_day = "unknown",
+        region = "unknown",
+        sub_region = "unknown",
+        specific_location = "unknown",
+        participants = ["unknown"],
+        exits = ["unknown"]
+    )
+    recent_recap = ""
+
+    while True:
+        # Build the turn's input with context
+        preface = dm_context_blob(scene_state, recent_recap)
+        user_text_in = f"{preface}\nPlayer: {user_text}"
+
+        # Hand one turn to the agent. Runner should orchestrate tool calls internally.
+        try:
+            result = await Runner.run(dm_agent, user_text_in)
+        except KeyboardInterrupt:
+            print("\n[Interrupted]")
+            break
+        except Exception as e:
+            print(f"\n[Error from agent] {e}")
+            # keep the loop responsive
+            user_text = await aio_input("\nYou: ")
+            if user_text.strip().lower() in ("/quit", "quit", "exit", "/exit"):
+                break
+            continue
+
+        dm_text = (
+            getattr(result, "output_text", None)
+            or getattr(result, "content", None)
+            or str(result)
+        )
+
+        # ---- Parse and merge short-term memory updates ----
+        payload = extract_update_payload(dm_text) or {}
+        patch = payload.get("scene_state_patch") or {}
+        if patch:
+            scene_state = merge_scene_patch(scene_state, patch)
+
+        turn_summary = payload.get("turn_summary") or ""
+        recent_recap = clip_recap(recent_recap, turn_summary)
+
+        mem.upsert_memory_writes(user_id=USER_ID, memory_writes=payload.get("memory_writes", []))
+
+        # Show narration only (strip the JSON block)
+        print(f"\nDM:\n{strip_json_block(dm_text)}\n")
+
+        user_text = (await aio_input("You: ")).strip()
+        if not user_text:
+            user_text = "(The player hesitates, looking around.)"
+        if user_text.lower() in ("/quit", "quit", "exit", "/exit"):
+            print("Goodbye, adventurer.")
+            break
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -14,4 +14,5 @@ raw_data/
 !data/worlds/**/.gitkeep
 
 # Vector store config is per-environment
-config/vectorstores.json
+config/
+mirror/
