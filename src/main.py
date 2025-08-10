@@ -1,17 +1,28 @@
+# Standard library
 import asyncio
 import os
+import random
+import re
+import json
+from pathlib import Path
+from typing import Any, Literal
+
+# Third-party: environment & OpenAI core
 from dotenv import load_dotenv
 import openai
 from openai import OpenAI
+
+# Third-party: OpenAI Agents SDK
 from agents import Agent, Runner, function_tool
 from agents import set_tracing_export_api_key
 from agents.tracing.setup import GLOBAL_TRACE_PROVIDER
-from library.vectorstores import LoreSearch, MemorySearch, ensure_campaign_mem_store
-from pydantic import BaseModel
-import random, re, json
-from typing import Any
-from datetime import datetime
-from pathlib import Path
+
+# Third-party: data validation
+from pydantic import BaseModel, Field
+
+# Project-local
+from library.vectorstores import LoreSearch, MemorySearch, get_campaign_mem_store
+
 
 # --- USER / CAMPAIGN (temporary hard-codes for testing) ---
 USER_ID = "user_001"
@@ -27,19 +38,20 @@ AGENT_KEY = os.getenv("OPENAI_API_KEY_AGENT")
 if not AGENT_KEY:
     raise RuntimeError("OPENAI_API_KEY_AGENT not set in environment")
 
-# Make sure every library that expects OPENAI_API_KEY can see it
+# Make sure every library that expects an OPENAI_API_KEY can see one
 openai.api_key = AGENT_KEY
 os.environ["OPENAI_API_KEY"] = AGENT_KEY
 client = OpenAI(api_key=AGENT_KEY)
 
-# Pass API key to tracing setup (call the function, don't overwrite it)
+# Pass API key to tracing setup
 set_tracing_export_api_key(AGENT_KEY)
-
+# Forces tracing buffer to flush immediately
+# i.e., it pushes any queued spans/events to the tracing backend now,
+# instead of waiting for the background batch timer
 GLOBAL_TRACE_PROVIDER._multi_processor.force_flush()
 
-# - Before resolving callbacks to prior sessions, call `readMemory`.
-# - After narrating, call `writeMemory` with distilled updates.
 
+# ---- System Prompt for the Dungeon Master Agent ----
 DM_SYSTEM_PROMPT = """
 You are a fair but imaginative Dungeon Master.
 
@@ -48,11 +60,11 @@ Style:
 - Prefer concrete nouns and strong verbs over flowery prose.
 - Keep narration 150 to 250 words.
 
-Canon & tools:
-- When facts may exist in canon, call `lore_search_tool`.
+Your Tools:
+- When facts may exist in canon, call `searchLore`
 - If recalling prior promises, quests, relationships, or inventory effects could matter,
-  call the `memory_search_tool` (campaign-scoped long-term memory).
-- If you decide that a dice roll is needed, call `roll` - you will need to specify a formula like '1d20+3'.
+  call the `searchMemory` (campaign-scoped long-term memory)
+- If you decide that a dice roll is needed, call `rollDice` - you will need to specify a formula like '1d20+3'
 
 Remember:
 - Players do not necessarily know the lore of the world, so they won't immeidately recongnise a place or person.
@@ -63,7 +75,7 @@ Remember:
 - In a city the players are more likely to see crowds, in the wilderness creatures, and in a desert maybe none at all.
 
 Flow:
-- End each turn with:
+- End each turn by stating:
   (a) what just changed,
   (b) obvious exits/affordances.
 
@@ -91,6 +103,7 @@ Output contract:
 """
 
 # ---- Define Data Classes ----
+# Used for short-term memory (scene state)
 class SceneState(BaseModel):
     time_of_day: str
     region: str
@@ -99,35 +112,77 @@ class SceneState(BaseModel):
     participants: list[str]
     exits: list[str]
 
-class EpisodicMemory(BaseModel):
-    type: str  # "event" | "preference" | "relationship" | "quest_update" | "lore_use"
-    keys: list[str]
-    summary: str
+# class EpisodicMemory(BaseModel):
+#     type: Literal["event","preference","relationship","quest_update","lore_use"]
+#     keys: list[str] = Field(default_factory=list, description="Entities for retrieval (NPCs, places, items)")
+#     summary: str = Field(..., max_length=240, description="One-sentence fact or change to remember")
+
 
 # ---- Vector store & memory backends (you provide these) ----
+# Vector store for the world lore
 lore = LoreSearch.set_lore(collection="Fiction")
-lore_search_tool = lore.as_tool()
+raw_lore_search_tool = lore.as_tool()
 
-mem_store_id = ensure_campaign_mem_store(client, CAMPAIGN_ID)
+lore_agent = Agent(
+    name = "Lore Agent",
+    instructions = "Use file_search over the world/canon store and return concise snippets.",
+    tools = [raw_lore_search_tool],
+)
+
+search_lore = lore_agent.as_tool(tool_name="searchLore",  tool_description="Search world canon.")
+
+# Long-term memory store
+mem_store_id = get_campaign_mem_store(client, CAMPAIGN_ID)
 mem = MemorySearch.from_id(campaign_id=CAMPAIGN_ID, vector_store_id=mem_store_id, client=client)\
                   .with_mirror(Path(MEM_MIRROR_PATH) / CAMPAIGN_ID)
-memory_search_tool = mem.as_tool()
+raw_memory_search_tool = mem.as_tool()
 
-# ---- Tools ----
-@function_tool
+mem_agent = Agent(
+    name = "Memory Agent",
+    instructions = "Use file_search over the campaign memory store and return concise snippets.",
+    tools = [raw_memory_search_tool],
+)
+
+search_memory = mem_agent.as_tool(tool_name="searchMemory", tool_description="Search campaign memory.")
+
+
+# ---- Core Agent Tools ----
+@function_tool(name_override="rollDice")
 def roll(formula: str) -> dict:
     """
-    Roll dice and apply simple modifiers, e.g., '1d20+3' or '5d8+3'.
+    Dice roller for game mechanics.
+
+    Use this tool whenever a random outcome is needed
+    (e.g., ability checks, saving throws, attack rolls, damage, initiative).
+    Input a single dice expression using lowercase 'd' and an optional +/- modifier:
+
+        <N>d<S>[+/-M]
+
+    Examples:
+        "1d20+3"   # ability check with proficiency
+        "2d6"      # weapon damage
+        "5d8-2"    # effect with penalty
+        "3d4+0"    # explicit zero modifier is allowed
     """
     m = re.fullmatch(r"(\d+)d(\d+)([+-]\d+)?", formula.replace(" ", ""))
     if not m:
         return {"error": "Bad formula"}
     n, sides, mod = int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)
-    rolls = [random.randint(4, sides) for _ in range(n)]
+    rolls = [random.randint(1, sides) for _ in range(n)]
     total = sum(rolls) + mod
     return {"rolls": rolls, "mod": mod, "total": total}
 
-# ---- Tools for Memory ----
+# @function_tool(name_override="commitMemory")
+# def commit_memory(items: list[EpisodicMemory]) -> dict:
+#     """
+#     Persist long-term memory for this campaign.
+#     The DM should call this whenever relationships change or notable facts occur.
+#     """
+#     mem.upsert_memory_writes(user_id=USER_ID, memory_writes=[i.model_dump() for i in items])
+#     return {"saved": len(items)}
+
+
+# ---- More functions for Memory ----
 JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
 def dm_context_blob(scene_state: "SceneState", recent_recap: str) -> str:
@@ -155,7 +210,7 @@ def strip_json_block(dm_text: str) -> str:
     return JSON_BLOCK_RE.sub("", dm_text).rstrip()
 
 def merge_scene_patch(scene: "SceneState", patch: dict[str, Any]) -> "SceneState":
-    """Shallow merge: if a field is present in patch, replace it in the scene."""
+    """Shallow merge: if a top-level field is present in patch, replace it in the scene."""
     data = scene.model_dump()
     for k, v in patch.items():
         if v is not None:
@@ -167,19 +222,16 @@ def clip_recap(prev: str, turn_summary: str, limit_chars: int = 700) -> str:
     rec = (prev + " " + (turn_summary or "")).strip()
     return rec[-limit_chars:] if len(rec) > limit_chars else rec
 
+
 # ---- The Master Agent ----
 dm_agent = Agent(
     name = "The Dungeon Master",
     instructions = DM_SYSTEM_PROMPT,
-    tools = [lore_search_tool, memory_search_tool, roll]
+    tools = [search_lore, search_memory, roll]
 )
 
-# ---- Looping ----
-# async def aio_input(prompt: str = "") -> str:
-#     """Async-friendly wrapper around input()."""
-#     loop = asyncio.get_event_loop()
-#     return await loop.run_in_executor(None, lambda: input(prompt))
 
+# ---- Looping ----
 async def aio_input(prompt: str = "") -> str:
     # Runs blocking input() in a worker thread (Py 3.9+)
     return await asyncio.to_thread(input, prompt)
@@ -195,7 +247,7 @@ async def main():
 
     user_text = seed
 
-    # --- Short-term memory state ---
+    # Short-term memory state
     scene_state = SceneState(
         time_of_day = "unknown",
         region = "unknown",
@@ -225,13 +277,14 @@ async def main():
                 break
             continue
 
+        # Show the agent's raw output
         dm_text = (
             getattr(result, "output_text", None)
             or getattr(result, "content", None)
             or str(result)
         )
 
-        # ---- Parse and merge short-term memory updates ----
+        # Parse and merge short-term memory updates
         payload = extract_update_payload(dm_text) or {}
         patch = payload.get("scene_state_patch") or {}
         if patch:
@@ -242,7 +295,7 @@ async def main():
 
         mem.upsert_memory_writes(user_id=USER_ID, memory_writes=payload.get("memory_writes", []))
 
-        # Show narration only (strip the JSON block)
+        # Show the narration part only (strip the JSON block)
         print(f"\nDM:\n{strip_json_block(dm_text)}\n")
 
         user_text = (await aio_input("You: ")).strip()
