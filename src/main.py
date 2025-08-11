@@ -4,6 +4,7 @@ import os
 import random
 import re
 import json
+import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -30,6 +31,7 @@ USER_ID = "user_001"
 CAMPAIGN_ID = "camp_001"
 MEM_REGISTRY_PATH = "config/memorystores.json"
 MEM_MIRROR_PATH = "mirror/mem_mirror"
+SESSIONS_BASE_PATH = "mirror/sessions"
 
 # Load environment
 load_dotenv()
@@ -54,6 +56,7 @@ GLOBAL_TRACE_PROVIDER._multi_processor.force_flush()
 
 # ---- System Prompt for the Dungeon Master Agent ----
 DM_SYSTEM_PROMPT = load_prompt("system", "dm_original.md")
+DM_NEW_SESSION_PROMPT = load_prompt("system", "dm_new_session.md")
 
 
 # ---- Define Data Classes ----
@@ -144,10 +147,11 @@ roll = function_tool(name_override="rollDice")(roll_impl)
 # ---- More functions for Memory ----
 JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
-def dm_context_blob(scene_state: "SceneState", recent_recap: str) -> str:
+def dm_context_blob(session_plan: dict[str, Any], scene_state: "SceneState", recent_recap: str) -> str:
     """Compose a small, model-friendly context preface."""
     return (
         "DM CONTEXT\n"
+        "Session plan:\n" + json.dumps(session_plan, ensure_ascii=False) + "\n\n"
         "SceneState JSON:\n" + json.dumps(scene_state.model_dump(), ensure_ascii=False) + "\n\n"
         "Recent Recap (<=200 words):\n" + (recent_recap or "(none)") + "\n"
         "END CONTEXT\n"
@@ -189,6 +193,12 @@ dm_agent = Agent(
     tools = [search_lore, search_memory, roll]
 )
 
+dm_new_session_agent = Agent(
+    name = "New Session Preparation Agent",
+    instructions = DM_NEW_SESSION_PROMPT,
+    tools = [search_lore, search_memory]
+)
+
 
 # ---- Looping ----
 async def aio_input(prompt: str = "") -> str:
@@ -196,15 +206,65 @@ async def aio_input(prompt: str = "") -> str:
     return await asyncio.to_thread(input, prompt)
 
 async def main():
+    
+    # Check if the campaign exists yet
+    with open(MEM_REGISTRY_PATH, "r", encoding="utf-8") as f:
+        mem_registry = json.load(f)
+
+    if CAMPAIGN_ID in mem_registry:
+        print(f"Campaign '{CAMPAIGN_ID}' exists.")
+        print(f"Continuing campaign...")
+    else:
+        print(f"Campaign '{CAMPAIGN_ID}' not found.")
+        print(f"Initialising new campaign...")
+
+    # Run the New Session agent.
+    try:
+        ns_result = await Runner.run(dm_new_session_agent, "Create a new session")
+    except KeyboardInterrupt:
+        print("\n[Interrupted]")
+    except Exception as e:
+        print(f"\n[Error from New Session agent] {e}")
+
+    # Get the New Session agent's output
+    ns_text = (
+        getattr(ns_result, "output_text", None)
+        or getattr(ns_result, "content", None)
+        or str(ns_result)
+    )
+
+    # Parse the JSON block from the New Session agent's output
+    new_session_json = extract_update_payload(ns_text) or {}
+
+    # Save the JSON block to a new session file in mirror/sessions
+    session_dir = Path(SESSIONS_BASE_PATH) / CAMPAIGN_ID
+    session_dir.mkdir(parents=True, exist_ok=True)
+    session_path = session_dir / f"{int(time.time())}_new_session.json"
+    session_path.write_text(
+        json.dumps(new_session_json, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    # Pull structured pieces (fallbacks keep it robust)
+    session_plan  = new_session_json.get("session_plan", {})
+    initial_scene = new_session_json.get("initial_scene_state_patch", {})
+
+    # Get the read-aloud text from the New Session JSON
+    read_aloud = new_session_json["session_plan"]["opening_read_aloud"]
+    
     print("\n=== Dungeon Master — turn-based session ===")
     print("Type '/quit' to exit.\n")
 
-    # Seed the world with an initial prompt (player's opening line)
-    seed = (await aio_input("Seed the world (e.g., 'I wake at dawn by the city gates'): ")).strip()
-    if not seed:
-        seed = "I open my eyes and see the words 'Metropolis of Mystery' in a garish font over the gates to a city."
+    if read_aloud:
+        print("\n=== Session Read-Aloud ===\n")
+        print(read_aloud.strip())
+        print("\n==========================\n")
 
-    user_text = seed
+    # Seed the session with an opening line from the player
+    user_text = (await aio_input("You: ")).strip()
+    if not user_text:
+        user_text = "(The player hesitates, looking around.)"
+    if user_text.lower() in ("/quit", "quit", "exit", "/exit"):
+        print("Goodbye, adventurer.")
 
     # Short-term memory state
     scene_state = SceneState(
@@ -215,11 +275,12 @@ async def main():
         participants = ["unknown"],
         exits = ["unknown"]
     )
+    scene_state = merge_scene_patch(scene_state, initial_scene)
     recent_recap = ""
 
     while True:
         # Build the turn's input with context
-        preface = dm_context_blob(scene_state, recent_recap)
+        preface = dm_context_blob(session_plan, scene_state, recent_recap)
         user_text_in = f"{preface}\nPlayer: {user_text}"
 
         # Hand one turn to the agent. Runner should orchestrate tool calls internally.
