@@ -222,7 +222,6 @@ async def main():
     jl_write({"event": "campaign_found", "campaign_id": CAMPAIGN_ID, "ts": time.time()})
 
     # Run the New Session agent.
-    ns_result = await Runner.run(dm_new_session_agent, "Create a new session", hooks=LocalRunLogger())
     try:
         ns_result = await Runner.run(dm_new_session_agent, "Create a new session", hooks=LocalRunLogger())
     except KeyboardInterrupt:
