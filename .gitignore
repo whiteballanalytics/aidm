@@ -16,3 +16,4 @@ raw_data/
 # Vector store config is per-environment
 config/
 mirror/
+logs/

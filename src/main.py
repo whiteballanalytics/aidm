@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 # Project-local
 from library.vectorstores import LoreSearch, MemorySearch, get_campaign_mem_store
 from library.prompts import load_prompt
+from library.logginghooks import LocalRunLogger, jl_write
 
 
 # --- USER / CAMPAIGN (temporary hard-codes for testing) ---
@@ -217,10 +218,13 @@ async def main():
     else:
         print(f"Campaign '{CAMPAIGN_ID}' not found.")
         print(f"Initialising new campaign...")
+        # MISSING CODE: Create a new campaign
+    jl_write({"event": "campaign_found", "campaign_id": CAMPAIGN_ID, "ts": time.time()})
 
     # Run the New Session agent.
+    ns_result = await Runner.run(dm_new_session_agent, "Create a new session", hooks=LocalRunLogger())
     try:
-        ns_result = await Runner.run(dm_new_session_agent, "Create a new session")
+        ns_result = await Runner.run(dm_new_session_agent, "Create a new session", hooks=LocalRunLogger())
     except KeyboardInterrupt:
         print("\n[Interrupted]")
     except Exception as e:
@@ -239,7 +243,8 @@ async def main():
     # Save the JSON block to a new session file in mirror/sessions
     session_dir = Path(SESSIONS_BASE_PATH) / CAMPAIGN_ID
     session_dir.mkdir(parents=True, exist_ok=True)
-    session_path = session_dir / f"{int(time.time())}_new_session.json"
+    session_id = int(time.time())
+    session_path = session_dir / f"{session_id}_new_session.json"
     session_path.write_text(
         json.dumps(new_session_json, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -258,6 +263,7 @@ async def main():
         print("\n=== Session Read-Aloud ===\n")
         print(read_aloud.strip())
         print("\n==========================\n")
+    jl_write({"event": "session_start", "campaign_id": CAMPAIGN_ID, "session_id": session_id, "read_aloud": read_aloud,"ts": time.time()})
 
     # Seed the session with an opening line from the player
     user_text = (await aio_input("You: ")).strip()
@@ -265,6 +271,7 @@ async def main():
         user_text = "(The player hesitates, looking around.)"
     if user_text.lower() in ("/quit", "quit", "exit", "/exit"):
         print("Goodbye, adventurer.")
+    jl_write({"event": "user_input", "campaign_id": CAMPAIGN_ID, "session_id": session_id, "user_input": user_text, "ts": time.time()})
 
     # Short-term memory state
     scene_state = SceneState(
@@ -282,10 +289,12 @@ async def main():
         # Build the turn's input with context
         preface = dm_context_blob(session_plan, scene_state, recent_recap)
         user_text_in = f"{preface}\nPlayer: {user_text}"
+        jl_write({"event": "dm_agent_input", "campaign_id": CAMPAIGN_ID, "session_id": session_id, "dm_agent_input": user_text_in, "ts": time.time()})
+
 
         # Hand one turn to the agent. Runner should orchestrate tool calls internally.
         try:
-            result = await Runner.run(dm_agent, user_text_in)
+            result = await Runner.run(dm_agent, user_text_in, hooks=LocalRunLogger())
         except KeyboardInterrupt:
             print("\n[Interrupted]")
             break
@@ -317,6 +326,7 @@ async def main():
 
         # Show the narration part only (strip the JSON block)
         print(f"\nDM:\n{strip_json_block(dm_text)}\n")
+        jl_write({"event": "dm_narration", "campaign_id": CAMPAIGN_ID, "session_id": session_id, "dm_narration": strip_json_block(dm_text), "ts": time.time()})
 
         user_text = (await aio_input("You: ")).strip()
         if not user_text:
@@ -324,6 +334,9 @@ async def main():
         if user_text.lower() in ("/quit", "quit", "exit", "/exit"):
             print("Goodbye, adventurer.")
             break
+        jl_write({"event": "user_input", "campaign_id": CAMPAIGN_ID, "session_id": session_id, "user_input": user_text, "ts": time.time()})
+    
+    jl_write({"event": "session_end", "campaign_id": CAMPAIGN_ID, "session_id": session_id, "user_input": user_text, "ts": time.time()})
 
 if __name__ == "__main__":
     asyncio.run(main())
