@@ -29,9 +29,10 @@ from library.logginghooks import LocalRunLogger, jl_write
 
 # --- USER / CAMPAIGN (temporary hard-codes for testing) ---
 USER_ID = "user_001"
-CAMPAIGN_ID = "camp_001"
+CAMPAIGN_ID = "camp_016"
 MEM_REGISTRY_PATH = "config/memorystores.json"
 MEM_MIRROR_PATH = "mirror/mem_mirror"
+CAMPAIGN_BASE_PATH = "mirror/campaigns"
 SESSIONS_BASE_PATH = "mirror/sessions"
 
 # Load environment
@@ -58,6 +59,7 @@ GLOBAL_TRACE_PROVIDER._multi_processor.force_flush()
 # ---- System Prompt for the Dungeon Master Agent ----
 DM_SYSTEM_PROMPT = load_prompt("system", "dm_original.md")
 DM_NEW_SESSION_PROMPT = load_prompt("system", "dm_new_session.md")
+DM_NEW_CAMPAIGN_PROMPT = load_prompt("system", "dm_new_campaign.md")
 
 
 # ---- Define Data Classes ----
@@ -78,7 +80,7 @@ class SceneState(BaseModel):
 
 # ---- Vector store & memory backends (you provide these) ----
 # Vector store for the world lore
-lore = LoreSearch.set_lore(collection="Fiction")
+lore = LoreSearch.set_lore(collection="SwordCoast")
 raw_lore_search_tool = lore.as_tool()
 
 lore_agent = Agent(
@@ -200,6 +202,13 @@ dm_new_session_agent = Agent(
     tools = [search_lore, search_memory]
 )
 
+dm_new_campaign_agent = Agent(
+    name = "New Campaign Preparation Agent",
+    instructions = DM_NEW_CAMPAIGN_PROMPT,
+    tools = [search_lore],
+    model="gpt-5"
+)
+
 
 # ---- Looping ----
 async def aio_input(prompt: str = "") -> str:
@@ -209,17 +218,36 @@ async def aio_input(prompt: str = "") -> str:
 async def main():
     
     # Check if the campaign exists yet
-    with open(MEM_REGISTRY_PATH, "r", encoding="utf-8") as f:
-        mem_registry = json.load(f)
+    campaign_path = Path(CAMPAIGN_BASE_PATH) / f"{CAMPAIGN_ID}_outline.json"
 
-    if CAMPAIGN_ID in mem_registry:
+    if campaign_path.exists():
         print(f"Campaign '{CAMPAIGN_ID}' exists.")
         print(f"Continuing campaign...")
+        jl_write({"event": "campaign_found", "campaign_id": CAMPAIGN_ID, "ts": time.time()})
     else:
         print(f"Campaign '{CAMPAIGN_ID}' not found.")
         print(f"Initialising new campaign...")
-        # MISSING CODE: Create a new campaign
-    jl_write({"event": "campaign_found", "campaign_id": CAMPAIGN_ID, "ts": time.time()})
+        user_text = (await aio_input("I would love guidance - do you have any ideas for the new campaign?: ")).strip()
+        
+        # Run the New Campaign agent.
+        try:
+            ns_result = await Runner.run(dm_new_campaign_agent, user_text, hooks=LocalRunLogger())
+            jl_write({"event": "new_campaign_generated", "campaign_id": CAMPAIGN_ID, "ts": time.time()})
+        except KeyboardInterrupt:
+            print("\n[Interrupted]")
+        except Exception as e:
+            print(f"\n[Error from New Campaign agent] {e}")
+
+        # Get the New Campaign agent's output
+        ns_text = (
+            getattr(ns_result, "output_text", None)
+            or getattr(ns_result, "content", None)
+            or str(ns_result)
+        )
+        campaign_dir = Path(CAMPAIGN_BASE_PATH)
+        campaign_dir.mkdir(parents=True, exist_ok=True)
+        campaign_path = campaign_dir / f"{CAMPAIGN_ID}_outline.json"
+        campaign_path.write_text(ns_text, encoding="utf-8")
 
     # Run the New Session agent.
     try:
