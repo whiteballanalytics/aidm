@@ -178,6 +178,25 @@ body {
     background: linear-gradient(135deg, var(--error-color), #d32f2f);
 }
 
+/* Utility classes */
+.flex {
+    display: flex;
+}
+
+/* Disabled button styles */
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed !important;
+    background: #f5f5f5 !important;
+    color: #999 !important;
+    border: 1px solid #ddd !important;
+}
+
+.btn:disabled:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
 /* Cards */
 .card {
     background: white;
@@ -260,6 +279,14 @@ body {
 .status-complete {
     background: #cce7ff;
     color: #0066cc;
+}
+
+/* World preview styles */
+.world-preview {
+    min-height: 120px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fafafa;
 }
 
 /* Chat Interface */

@@ -65,16 +65,22 @@
                     <!-- Campaign Information -->
                     <div class="card">
                         <h3>Available Worlds</h3>
-                        <div class="item-list">
-                            <div style="padding: 10px; background: #f8f9fa; margin: 5px 0; border-radius: 5px;">
-                                <strong>Fiction</strong> - General fantasy adventures
-                            </div>
-                            <div style="padding: 10px; background: #f8f9fa; margin: 5px 0; border-radius: 5px;">
-                                <strong>SwordCoast</strong> - Classic D&D Forgotten Realms setting
-                            </div>
-                            <div style="padding: 10px; background: #f8f9fa; margin: 5px 0; border-radius: 5px;">
-                                <strong>MiddleEarth</strong> - Tolkien-inspired adventures
-                            </div>
+                        
+                        <!-- World Selection Controls -->
+                        <div class="flex" style="gap: 10px; margin-bottom: 20px; align-items: center;">
+                            <select id="world-preview-select" class="form-select" style="flex: 1;">
+                                <option value="">Select a world to preview...</option>
+                            </select>
+                            <button class="btn btn-secondary" disabled>
+                                Add World
+                            </button>
+                        </div>
+                        
+                        <!-- Dynamic World Description Panel -->
+                        <div id="world-description-panel" class="world-preview">
+                            <p style="color: #666; text-align: center; padding: 20px;">
+                                Select a world above to see its description
+                            </p>
                         </div>
                         
                         <h4 style="margin-top: 20px;">How It Works</h4>

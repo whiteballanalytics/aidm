@@ -48,6 +48,7 @@ class DnDApp {
             const data = await this.apiRequest('/api/worlds');
             this.worlds = data.worlds;
             this.populateWorldSelect();
+            this.populateWorldPreview();
         } catch (error) {
             console.error('Failed to load worlds:', error);
         }
@@ -172,6 +173,67 @@ class DnDApp {
             option.textContent = worldName;
             select.appendChild(option);
         });
+    }
+
+    populateWorldPreview() {
+        const select = document.getElementById('world-preview-select');
+        if (!select) return;
+        
+        select.innerHTML = '<option value="">Select a world to preview...</option>';
+        
+        Object.keys(this.worlds).forEach(worldName => {
+            const option = document.createElement('option');
+            option.value = worldName;
+            option.textContent = worldName;
+            select.appendChild(option);
+        });
+
+        // Add event listener for world selection changes
+        select.addEventListener('change', (e) => this.onWorldPreviewChange(e.target.value));
+    }
+
+    onWorldPreviewChange(worldName) {
+        const panel = document.getElementById('world-description-panel');
+        if (!panel) return;
+        
+        if (!worldName) {
+            panel.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Select a world above to see its description</p>';
+            return;
+        }
+
+        // World descriptions
+        const worldDescriptions = {
+            'Fiction': {
+                description: 'A versatile fantasy realm perfect for general adventures. This world provides a rich backdrop for classic D&D storytelling with diverse landscapes, ancient mysteries, and endless possibilities for adventure.',
+                features: ['Flexible fantasy setting', 'Classic D&D elements', 'Diverse environments', 'Rich lore foundation']
+            },
+            'SwordCoast': {
+                description: 'The legendary Sword Coast from the Forgotten Realms setting. Home to iconic cities like Waterdeep and Baldur\'s Gate, this world offers the authentic D&D experience with established lore and familiar locations.',
+                features: ['Classic Forgotten Realms', 'Iconic cities and locations', 'Rich established lore', 'Traditional D&D setting']
+            },
+            'MiddleEarth': {
+                description: 'Enter Tolkien\'s legendary world of Middle-earth. Journey through the Shire, Rivendell, and beyond in this richly detailed realm of hobbits, elves, dwarves, and epic quests.',
+                features: ['Tolkien-inspired adventures', 'Iconic fantasy races', 'Epic quest narratives', 'Detailed world lore']
+            }
+        };
+
+        const world = worldDescriptions[worldName];
+        if (world) {
+            panel.innerHTML = `
+                <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <h4 style="margin-top: 0; color: #2c3e50;">${worldName}</h4>
+                    <p style="margin-bottom: 15px;">${world.description}</p>
+                    <div>
+                        <strong>Key Features:</strong>
+                        <ul style="margin: 10px 0 0 20px;">
+                            ${world.features.map(feature => `<li>${feature}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+            `;
+        } else {
+            panel.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">World description not available</p>';
+        }
     }
 
     renderCampaigns() {
