@@ -280,6 +280,30 @@ class DnDApp {
         }).join('');
     }
 
+    // Helper methods for session numbering
+    sessionTimestamp(session) {
+        if (session.created_at) {
+            return new Date(session.created_at).getTime();
+        }
+        // Fallback: parse numeric portion of session_id
+        const match = session.session_id.match(/\d+/);
+        return match ? parseInt(match[0]) : 0;
+    }
+
+    computeSessionNumberMap() {
+        // Sort sessions by creation time (oldest first) and assign sequential numbers
+        const sortedSessions = [...this.sessions].sort((a, b) => 
+            this.sessionTimestamp(a) - this.sessionTimestamp(b)
+        );
+        
+        const numberMap = new Map();
+        sortedSessions.forEach((session, index) => {
+            numberMap.set(session.session_id, index + 1);
+        });
+        
+        return numberMap;
+    }
+
     renderSessions() {
         const container = document.getElementById('sessions-list');
         const buttonContainer = document.getElementById('session-button-container');
@@ -343,12 +367,15 @@ class DnDApp {
             return;
         }
 
-        const sessionsHTML = this.sessions.map((session, index) => {
+        // Compute session numbering map based on creation order
+        const sessionNumberMap = this.computeSessionNumberMap();
+
+        const sessionsHTML = this.sessions.map((session) => {
             const statusClass = session.status === 'open' ? 'status-active' : 'status-complete';
             const statusText = session.status === 'open' ? 'Active' : 'Complete';
             
-            // Session numbering: sequential based on creation order
-            const sessionNumber = index + 1;
+            // Session numbering: sequential based on creation order (oldest = 1, newest = highest)
+            const sessionNumber = sessionNumberMap.get(session.session_id);
             
             // Format dates and message count
             const createdDate = session.created_at ? new Date(session.created_at).toLocaleDateString() : 'Unknown';
@@ -576,7 +603,7 @@ class DnDApp {
                     <h3>📜 Session Details (DM Only)</h3>
                     
                     <div class="campaign-metadata">
-                        <h4>Session ${session.turn_count || 0}</h4>
+                        <h4>Session ${this.computeSessionNumberMap().get(session.session_id) || 0}</h4>
                         <p><strong>Campaign:</strong> ${this.currentCampaign.campaign_name || 'Untitled Campaign'}</p>
                         <p><strong>Created:</strong> ${new Date(session.created_at).toLocaleDateString()}</p>
                         <p><strong>Status:</strong> ${session.status || 'Unknown'}</p>
