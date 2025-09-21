@@ -304,6 +304,268 @@ class DnDApp {
         return numberMap;
     }
 
+    // ============ UNIFIED JSON-TO-MARKDOWN RENDERER ============
+    
+    /**
+     * Unified JSON-to-Markdown renderer that can handle any JSON structure
+     * @param {any} value - The value to render
+     * @param {Object} options - Rendering options
+     * @param {Array} path - Current path in the JSON structure
+     * @returns {string} Markdown string
+     */
+    renderJSONToMarkdown(value, options = {}, path = []) {
+        const defaults = {
+            maxDepth: 4,
+            arrayItemLimit: 20,
+            headingBaseLevel: 1,
+            showCounts: true,
+            linkify: true,
+            rawFenceLanguage: 'json'
+        };
+        const opts = { ...defaults, ...options };
+        const currentDepth = path.length;
+        
+        // If we've exceeded max depth, show raw JSON
+        if (currentDepth >= opts.maxDepth) {
+            return this.renderRawJSON(value, opts.rawFenceLanguage);
+        }
+        
+        if (value === null) return '*(null)*';
+        if (value === undefined) return '*(undefined)*';
+        
+        const type = Array.isArray(value) ? 'array' : typeof value;
+        
+        switch (type) {
+            case 'object':
+                return this.renderObjectToMarkdown(value, opts, path);
+            case 'array':
+                return this.renderArrayToMarkdown(value, opts, path);
+            case 'string':
+                return this.renderStringToMarkdown(value, opts);
+            case 'number':
+            case 'boolean':
+                return `${value}`;
+            default:
+                return this.escapeMarkdown(String(value));
+        }
+    }
+    
+    /**
+     * Render object to markdown
+     */
+    renderObjectToMarkdown(obj, opts, path) {
+        if (!obj || Object.keys(obj).length === 0) {
+            return '*(empty object)*\n\n';
+        }
+        
+        let markdown = '';
+        const currentDepth = path.length;
+        
+        Object.keys(obj).forEach(key => {
+            const value = obj[key];
+            const keyPath = [...path, key];
+            const headingLevel = Math.min(opts.headingBaseLevel + currentDepth, 6);
+            const heading = '#'.repeat(headingLevel);
+            const displayKey = this.formatKeyName(key);
+            
+            if (typeof value === 'object' && value !== null) {
+                // Complex value - create a section
+                markdown += `${heading} ${displayKey}\n\n`;
+                markdown += this.renderJSONToMarkdown(value, opts, keyPath);
+                markdown += '\n';
+            } else {
+                // Simple value - show as key-value pair
+                const renderedValue = this.renderJSONToMarkdown(value, opts, keyPath);
+                markdown += `**${displayKey}:** ${renderedValue}\n\n`;
+            }
+        });
+        
+        return markdown;
+    }
+    
+    /**
+     * Render array to markdown
+     */
+    renderArrayToMarkdown(arr, opts, path) {
+        if (!arr || arr.length === 0) {
+            return '*(empty array)*\n\n';
+        }
+        
+        let markdown = '';
+        const currentDepth = path.length;
+        const showCount = opts.showCounts && arr.length > opts.arrayItemLimit;
+        
+        // Check if array contains homogeneous objects
+        const isObjectArray = arr.every(item => typeof item === 'object' && item !== null && !Array.isArray(item));
+        const isSimpleArray = arr.every(item => typeof item !== 'object' || item === null);
+        
+        if (isSimpleArray) {
+            // Simple array - render as bullet list
+            const itemsToShow = arr.slice(0, opts.arrayItemLimit);
+            itemsToShow.forEach(item => {
+                const renderedItem = this.renderJSONToMarkdown(item, opts, [...path, 'item']);
+                markdown += `- ${renderedItem}\n`;
+            });
+            
+            if (showCount) {
+                const remaining = arr.length - opts.arrayItemLimit;
+                markdown += `- *(... and ${remaining} more items)*\n`;
+            }
+            markdown += '\n';
+        } else if (isObjectArray) {
+            // Object array - render each with index
+            const itemsToShow = arr.slice(0, opts.arrayItemLimit);
+            itemsToShow.forEach((item, index) => {
+                const itemPath = [...path, index];
+                const headingLevel = Math.min(opts.headingBaseLevel + currentDepth + 1, 6);
+                const heading = '#'.repeat(headingLevel);
+                
+                // Try to find a good title for the item
+                const title = this.getItemTitle(item, index);
+                markdown += `${heading} ${title}\n\n`;
+                markdown += this.renderJSONToMarkdown(item, opts, itemPath);
+                markdown += '\n';
+            });
+            
+            if (showCount) {
+                const remaining = arr.length - opts.arrayItemLimit;
+                markdown += `*(... and ${remaining} more items)*\n\n`;
+            }
+        } else {
+            // Mixed array - render each item separately
+            const itemsToShow = arr.slice(0, opts.arrayItemLimit);
+            itemsToShow.forEach((item, index) => {
+                const itemPath = [...path, index];
+                markdown += `**Item ${index + 1}:** ${this.renderJSONToMarkdown(item, opts, itemPath)}\n\n`;
+            });
+            
+            if (showCount) {
+                const remaining = arr.length - opts.arrayItemLimit;
+                markdown += `*(... and ${remaining} more items)*\n\n`;
+            }
+        }
+        
+        return markdown;
+    }
+    
+    /**
+     * Render string with smart formatting
+     */
+    renderStringToMarkdown(str, opts) {
+        if (!str) return '*(empty)*';
+        
+        // Escape the string for markdown safety
+        let escaped = this.escapeMarkdown(str);
+        
+        // Optionally linkify URLs
+        if (opts.linkify) {
+            escaped = this.linkifyText(escaped);
+        }
+        
+        // Preserve line breaks
+        escaped = escaped.replace(/\n/g, '  \n');
+        
+        return escaped;
+    }
+    
+    /**
+     * Render raw JSON when depth limit exceeded
+     */
+    renderRawJSON(value, language = 'json') {
+        try {
+            const jsonString = JSON.stringify(value, null, 2);
+            return `\`\`\`${language}\n${jsonString}\n\`\`\`\n\n`;
+        } catch (e) {
+            return `\`\`\`\n${String(value)}\n\`\`\`\n\n`;
+        }
+    }
+    
+    /**
+     * Helper functions for the renderer
+     */
+    formatKeyName(key) {
+        return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+    
+    getItemTitle(item, index) {
+        if (typeof item !== 'object' || item === null) {
+            return `Item ${index + 1}`;
+        }
+        
+        // Try common title fields
+        const titleFields = ['name', 'title', 'label', 'id'];
+        for (const field of titleFields) {
+            if (item[field] && typeof item[field] === 'string') {
+                return this.escapeMarkdown(item[field]);
+            }
+        }
+        
+        return `Item ${index + 1}`;
+    }
+    
+    escapeMarkdown(text) {
+        if (typeof text !== 'string') return text;
+        return text
+            .replace(/\\/g, '\\\\')
+            .replace(/\*/g, '\\*')
+            .replace(/_/g, '\\_')
+            .replace(/\[/g, '\\[')
+            .replace(/\]/g, '\\]')
+            .replace(/\(/g, '\\(')
+            .replace(/\)/g, '\\)')
+            .replace(/~/g, '\\~')
+            .replace(/`/g, '\\`')
+            .replace(/>/g, '\\>')
+            .replace(/#/g, '\\#')
+            .replace(/\+/g, '\\+')
+            .replace(/-/g, '\\-')
+            .replace(/\./g, '\\.')
+            .replace(/!/g, '\\!')
+            .replace(/\|/g, '\\|');
+    }
+    
+    linkifyText(text) {
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.replace(urlRegex, '[$1]($1)');
+    }
+    
+    /**
+     * Extract structured data from various formats
+     */
+    extractStructuredData(input) {
+        if (!input) return null;
+        
+        // If already an object, return it
+        if (typeof input === 'object' && input !== null) {
+            return input;
+        }
+        
+        if (typeof input !== 'string') return null;
+        
+        // Try direct JSON parse
+        try {
+            return JSON.parse(input);
+        } catch (e) {
+            // Continue to other methods
+        }
+        
+        // Try RunResult format extraction
+        const runResultData = this.extractJSONFromRunResult(input);
+        if (runResultData) return runResultData;
+        
+        // Try to find JSON in fenced code blocks
+        const fencedMatch = input.match(/```(?:json)?\s*\n([\s\S]*?)\n```/i);
+        if (fencedMatch) {
+            try {
+                return JSON.parse(fencedMatch[1]);
+            } catch (e) {
+                // Continue
+            }
+        }
+        
+        return null;
+    }
+
     renderSessions() {
         const container = document.getElementById('sessions-list');
         const buttonContainer = document.getElementById('session-button-container');
