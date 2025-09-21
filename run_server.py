@@ -56,33 +56,6 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Custom Static Files with no-cache headers for development
-class NoCacheStaticFiles:
-    def __init__(self, directory: str):
-        self.directory = Path(directory)
-    
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            return
-        
-        request = Request(scope, receive)
-        path = request.url.path.lstrip("/static/")
-        file_path = self.directory / path
-        
-        if not file_path.exists() or not file_path.is_file():
-            response = Response("File not found", status_code=404)
-            await response(scope, receive, send)
-            return
-        
-        # Force no caching during development
-        headers = {
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache", 
-            "Expires": "0"
-        }
-        
-        response = FileResponse(file_path, headers=headers)
-        await response(scope, receive, send)
 
 # API Endpoints
 
@@ -396,7 +369,7 @@ routes = [
 app = Starlette(routes=routes)
 
 # Mount static files
-app.mount("/static", NoCacheStaticFiles("static"))
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Add CORS middleware for frontend development
 app.add_middleware(
