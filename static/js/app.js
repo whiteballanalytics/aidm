@@ -268,21 +268,12 @@ class DnDApp {
             return `
                 <div class="card">
                     <h3>${campaign.campaign_name || campaign.name || 'Untitled Campaign'}</h3>
-                    <div class="campaign-info-grid">
-                        <div class="campaign-info-item">
-                            <strong>World:</strong> ${campaign.world_collection}
+                    <div class="campaign-info-compact">
+                        <div class="campaign-info-row">
+                            <b>WORLD:</b> ${campaign.world_collection} &nbsp;&nbsp;&nbsp; <b>DESCRIPTION:</b> ${truncatedDescription}
                         </div>
-                        <div class="campaign-info-item">
-                            <strong>Created:</strong> ${new Date(createdDate).toLocaleDateString()}
-                        </div>
-                        <div class="campaign-info-item">
-                            <strong>Description:</strong> ${truncatedDescription}
-                        </div>
-                        <div class="campaign-info-item">
-                            <strong>Last Played:</strong> ${campaign.last_played ? new Date(campaign.last_played).toLocaleDateString() : 'Never'}
-                        </div>
-                        <div class="campaign-info-item">
-                            <strong>Sessions:</strong> ${sessionText}
+                        <div class="campaign-info-row">
+                            <b>CREATED:</b> ${new Date(createdDate).toLocaleDateString()} &nbsp;&nbsp;&nbsp; <b>LAST PLAYED:</b> ${campaign.last_played ? new Date(campaign.last_played).toLocaleDateString() : 'Never'} &nbsp;&nbsp;&nbsp; <b>SESSIONS:</b> ${sessionText}
                         </div>
                     </div>
                     <div class="campaign-actions">
