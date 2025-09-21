@@ -343,29 +343,42 @@ class DnDApp {
             return;
         }
 
-        const sessionsHTML = this.sessions.map(session => {
+        const sessionsHTML = this.sessions.map((session, index) => {
             const statusClass = session.status === 'open' ? 'status-active' : 'status-complete';
             const statusText = session.status === 'open' ? 'Active' : 'Complete';
             
+            // Session numbering: sequential based on creation order
+            const sessionNumber = index + 1;
+            
+            // Format dates and message count
+            const createdDate = session.created_at ? new Date(session.created_at).toLocaleDateString() : 'Unknown';
+            const lastPlayed = session.last_activity ? new Date(session.last_activity).toLocaleDateString() : 'Never';
+            const messageCount = session.turn_count || 0;
+            const messageText = messageCount === 0 ? 'No messages yet' : 
+                               messageCount === 1 ? '1 message' : 
+                               `${messageCount} messages`;
+            
             return `
                 <div class="card">
-                    <div class="flex" style="justify-content: space-between; align-items: center;">
-                        <div>
-                            <h4>Session ${session.turn_number || 0}</h4>
-                            <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${statusText}</span></p>
-                            <p><strong>Started:</strong> ${new Date(session.creation_time).toLocaleDateString()}</p>
+                    <h3>Session ${sessionNumber}</h3>
+                    <div class="campaign-info-compact">
+                        <div class="campaign-info-row">
+                            <b>STATUS:</b> <span class="status-badge ${statusClass}">${statusText}</span> &nbsp;&nbsp;&nbsp; <b>MESSAGES:</b> ${messageText}
                         </div>
-                        <div class="item-actions">
-                            <button class="btn btn-secondary" onclick="app.viewSession('${session.session_id}')">View Details</button>
-                            ${session.status === 'open' ? 
-                                `<button class="btn" onclick="app.playSession('${session.session_id}')">Continue</button>` :
-                                `<button class="btn btn-secondary" onclick="app.playSession('${session.session_id}')">View</button>`
-                            }
-                            ${session.status === 'open' ? 
-                                `<button class="btn btn-danger" onclick="app.closeSession('${session.session_id}')">Close</button>` :
-                                ''
-                            }
+                        <div class="campaign-info-row">
+                            <b>CREATED:</b> ${createdDate} &nbsp;&nbsp;&nbsp; <b>LAST PLAYED:</b> ${lastPlayed}
                         </div>
+                    </div>
+                    <div class="campaign-actions">
+                        <button class="btn btn-secondary" onclick="app.viewSession('${session.session_id}')">View Details (DM Only)</button>
+                        ${session.status === 'open' ? 
+                            `<button class="btn" onclick="app.playSession('${session.session_id}')">Continue</button>` :
+                            `<button class="btn btn-secondary" onclick="app.playSession('${session.session_id}')">Recap</button>`
+                        }
+                        ${session.status === 'open' ? 
+                            `<button class="btn btn-warning" onclick="app.closeSession('${session.session_id}')">Close Session</button>` :
+                            ''
+                        }
                     </div>
                 </div>
             `;
