@@ -261,16 +261,22 @@ class DnDApp {
                                sessionCount === 1 ? '1 session' : 
                                `${sessionCount} sessions`;
             
-            // Truncate description if too long
+            // Truncate text fields with specified character limits
+            const campaignName = campaign.campaign_name || campaign.name || 'Untitled Campaign';
+            const truncatedName = campaignName.length > 40 ? campaignName.substring(0, 40) + '...' : campaignName;
+            
+            const world = campaign.world_collection || '';
+            const truncatedWorld = world.length > 15 ? world.substring(0, 15) + '...' : world;
+            
             const description = campaign.user_description || campaign.description || 'No description';
-            const truncatedDescription = description.length > 80 ? description.substring(0, 80) + '...' : description;
+            const truncatedDescription = description.length > 60 ? description.substring(0, 60) + '...' : description;
             
             return `
                 <div class="card">
-                    <h3>${campaign.campaign_name || campaign.name || 'Untitled Campaign'}</h3>
+                    <h3>${truncatedName}</h3>
                     <div class="campaign-info-compact">
                         <div class="campaign-info-row">
-                            <b>WORLD:</b> ${campaign.world_collection} &nbsp;&nbsp;&nbsp; <b>DESCRIPTION:</b> ${truncatedDescription}
+                            <b>WORLD:</b> ${truncatedWorld} &nbsp;&nbsp;&nbsp; <b>DESCRIPTION:</b> ${truncatedDescription}
                         </div>
                         <div class="campaign-info-row">
                             <b>CREATED:</b> ${new Date(createdDate).toLocaleDateString()} &nbsp;&nbsp;&nbsp; <b>LAST PLAYED:</b> ${campaign.last_played ? new Date(campaign.last_played).toLocaleDateString() : 'Never'} &nbsp;&nbsp;&nbsp; <b>SESSIONS:</b> ${sessionText}
