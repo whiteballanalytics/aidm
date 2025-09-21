@@ -238,12 +238,15 @@ class DnDApp {
         if (this.sessions.length === 0) {
             container.innerHTML = `
                 <div class="text-center mt-20">
-                    <p>No sessions created yet for this campaign.</p>
                     <button class="btn" onclick="app.createSession()">Create First Session</button>
+                    <p class="mt-20">No sessions created yet for this campaign.</p>
                 </div>
             `;
             return;
         }
+
+        // Check if there's an active (open) session
+        const hasActiveSession = this.sessions.some(session => session.status === 'open');
 
         const sessionsHTML = this.sessions.map(session => {
             const statusClass = session.status === 'open' ? 'status-active' : 'status-complete';
@@ -273,12 +276,14 @@ class DnDApp {
             `;
         }).join('');
         
-        // Add create button centered underneath sessions
-        container.innerHTML = sessionsHTML + `
-            <div class="text-center mt-20">
+        // Show create button at TOP only if no active session exists
+        const createButtonHTML = !hasActiveSession ? `
+            <div class="text-center mb-20">
                 <button class="btn" onclick="app.createSession()">Create New Session</button>
             </div>
-        `;
+        ` : '';
+        
+        container.innerHTML = createButtonHTML + sessionsHTML;
     }
 
     // Campaign Management
