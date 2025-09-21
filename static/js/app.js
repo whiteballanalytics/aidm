@@ -583,52 +583,34 @@ class DnDApp {
 
         let markdown = '';
         
-        // Handle common campaign outline structure
-        const sections = {
-            'summary': '# Campaign Summary',
-            'overview': '# Campaign Overview', 
-            'description': '# Campaign Description',
-            'setting': '## Setting and World',
-            'world': '## Setting and World',
-            'plot_hooks': '## Main Plot Hooks',
-            'main_plot': '## Main Plot Hooks',
-            'story_hooks': '## Main Plot Hooks',
-            'npcs': '## Key NPCs',
-            'key_npcs': '## Key NPCs',
-            'characters': '## Key NPCs',
-            'locations': '## Important Locations',
-            'key_locations': '## Important Locations',
-            'important_locations': '## Important Locations',
-            'factions': '## Factions and Organizations',
-            'organizations': '## Factions and Organizations',
-            'themes': '## Campaign Themes',
-            'tone': '## Campaign Tone and Themes',
-            'background': '## Background Information',
-            'history': '## Background and History',
-            'adventure_hooks': '## Adventure Hooks',
-            'session_ideas': '## Session Ideas',
-            'encounters': '## Potential Encounters',
-            'treasure': '## Rewards and Treasure',
-            'rewards': '## Rewards and Treasure'
-        };
-
-        // Start with summary/overview as visible section
-        const summaryKeys = ['summary', 'overview', 'description'];
-        const summaryKey = Object.keys(outlineData).find(key => 
-            summaryKeys.includes(key.toLowerCase())
-        );
-        
-        if (summaryKey) {
-            markdown += `# Campaign Overview\n\n${outlineData[summaryKey]}\n\n`;
+        // Handle core_themes as the main overview (visible by default)
+        if (outlineData.core_themes && Array.isArray(outlineData.core_themes)) {
+            markdown += '# Campaign Themes\n\n';
+            outlineData.core_themes.forEach(theme => {
+                if (theme.label && theme.description) {
+                    markdown += `**${theme.label}:** ${theme.description}\n\n`;
+                }
+            });
         }
-
-        // Process other sections
+        
+        // Handle initial_draft as story overview
+        if (outlineData.initial_draft && Array.isArray(outlineData.initial_draft)) {
+            markdown += '## Story Overview\n\n';
+            outlineData.initial_draft.forEach((paragraph, index) => {
+                if (typeof paragraph === 'string') {
+                    markdown += `${paragraph}\n\n`;
+                }
+            });
+        }
+        
+        // Handle other sections dynamically
         Object.keys(outlineData).forEach(key => {
-            if (summaryKeys.includes(key.toLowerCase())) return; // Skip summary, already added
+            if (key === 'core_themes' || key === 'initial_draft' || key === 'lore_call_checklist') {
+                return; // Already handled or skip checklist
+            }
             
-            const lowerKey = key.toLowerCase();
-            const heading = sections[lowerKey] || `## ${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
             const value = outlineData[key];
+            const heading = `## ${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
             
             markdown += `${heading}\n\n`;
             
@@ -636,9 +618,10 @@ class DnDApp {
                 if (Array.isArray(value)) {
                     value.forEach((item, index) => {
                         if (typeof item === 'object') {
-                            markdown += `### ${item.name || item.title || `Item ${index + 1}`}\n\n`;
+                            const itemTitle = item.name || item.title || item.label || `Item ${index + 1}`;
+                            markdown += `### ${itemTitle}\n\n`;
                             Object.keys(item).forEach(subKey => {
-                                if (subKey !== 'name' && subKey !== 'title') {
+                                if (subKey !== 'name' && subKey !== 'title' && subKey !== 'label') {
                                     markdown += `**${subKey.replace(/_/g, ' ')}:** ${item[subKey]}\n\n`;
                                 }
                             });
@@ -700,14 +683,67 @@ class DnDApp {
         return tempDiv.innerHTML;
     }
 
+    extractJSONFromRunResult(runResultString) {
+        if (!runResultString || typeof runResultString !== 'string') {
+            return null;
+        }
+        
+        // Look for the pattern "Final output (str):" followed by JSON
+        const finalOutputMatch = runResultString.match(/Final output \(str\):\s*(\{[\s\S]*)/);
+        if (!finalOutputMatch) {
+            return null;
+        }
+        
+        let jsonString = finalOutputMatch[1].trim();
+        
+        // The JSON might be incomplete due to truncation, so we need to find the actual end
+        // Try to find the last complete JSON object
+        let bracketCount = 0;
+        let lastValidIndex = -1;
+        
+        for (let i = 0; i < jsonString.length; i++) {
+            if (jsonString[i] === '{') {
+                bracketCount++;
+            } else if (jsonString[i] === '}') {
+                bracketCount--;
+                if (bracketCount === 0) {
+                    lastValidIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        if (lastValidIndex > -1) {
+            jsonString = jsonString.substring(0, lastValidIndex + 1);
+        }
+        
+        try {
+            return JSON.parse(jsonString);
+        } catch (e) {
+            console.warn('Failed to parse extracted JSON:', e);
+            return null;
+        }
+    }
+
     formatCampaignOutline(outline) {
         if (!outline) return '<p>No outline available</p>';
         
-        // Try to parse as JSON first, fallback to text
         let outlineData;
-        try {
-            outlineData = typeof outline === 'string' ? JSON.parse(outline) : outline;
-        } catch (e) {
+        
+        // First, try to extract JSON from RunResult format
+        if (typeof outline === 'string' && outline.includes('RunResult:')) {
+            outlineData = this.extractJSONFromRunResult(outline);
+        } else {
+            // Try to parse as direct JSON
+            try {
+                outlineData = typeof outline === 'string' ? JSON.parse(outline) : outline;
+            } catch (e) {
+                outlineData = null;
+            }
+        }
+        
+        // If we couldn't extract structured data, display as markdown text
+        if (!outlineData) {
             return `<div class="markdown-content">${marked.parse(outline || 'No outline available')}</div>`;
         }
         
