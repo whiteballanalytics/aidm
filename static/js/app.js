@@ -193,6 +193,12 @@ class DnDApp {
                 `<p><strong>Last Played:</strong> ${new Date(campaign.last_played).toLocaleDateString()}</p>` : 
                 '<p><strong>Last Played:</strong> Never</p>';
             
+            // Get session count for this campaign
+            const sessionCount = campaign.session_count || 0;
+            const sessionText = sessionCount === 0 ? 'No sessions yet' : 
+                               sessionCount === 1 ? '1 session' : 
+                               `${sessionCount} sessions`;
+            
             return `
                 <div class="card">
                     <h3>${campaign.campaign_name || campaign.name || 'Untitled Campaign'}</h3>
@@ -200,6 +206,7 @@ class DnDApp {
                     <p><strong>Description:</strong> ${campaign.user_description || campaign.description || 'No description'}</p>
                     <p><strong>Created:</strong> ${new Date(createdDate).toLocaleDateString()}</p>
                     ${lastPlayed}
+                    <p><strong>Sessions:</strong> ${sessionText}</p>
                     <div class="item-actions">
                         <button class="btn" onclick="app.selectCampaign('${campaign.campaign_id}')">
                             Manage Sessions
@@ -364,21 +371,185 @@ class DnDApp {
         }
     }
 
-    async closeSession(sessionId) {
-        if (!confirm('Are you sure you want to close this session? It cannot be reopened.')) {
-            return;
+    async viewSession(sessionId) {
+        try {
+            const session = await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${sessionId}`);
+            this.showSessionModal(session);
+        } catch (error) {
+            console.error('Failed to load session details:', error);
+            this.showAlert('Failed to load session details', 'error');
+        }
+    }
+
+    convertSessionToMarkdown(session) {
+        if (!session) {
+            return '# Session Details\n\nNo session data available.';
+        }
+
+        let markdown = '';
+        
+        // Session Summary
+        markdown += '# Session Summary\n\n';
+        if (session.summary) {
+            markdown += `${session.summary}\n\n`;
         }
         
-        try {
-            await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${sessionId}/close`, {
-                method: 'POST'
-            });
+        // Session Info
+        markdown += `**Turn Count:** ${session.turn_count || 0}\n\n`;
+        markdown += `**Status:** ${session.status || 'Unknown'}\n\n`;
+        markdown += `**Last Activity:** ${session.last_activity ? new Date(session.last_activity).toLocaleString() : 'Never'}\n\n`;
+        
+        // Session Plan
+        if (session.session_plan) {
+            const plan = session.session_plan;
             
-            this.showAlert('Session closed successfully!', 'success');
-            await this.refreshSessions();
-        } catch (error) {
-            console.error('Failed to close session:', error);
+            if (plan.narrative_overview) {
+                markdown += '## Story Overview\n\n';
+                markdown += `${plan.narrative_overview}\n\n`;
+            }
+            
+            if (plan.objective) {
+                markdown += '## Objective\n\n';
+                markdown += `${plan.objective}\n\n`;
+            }
+            
+            if (plan.acts && Array.isArray(plan.acts)) {
+                markdown += '## Story Acts\n\n';
+                plan.acts.forEach(act => {
+                    if (act.name) {
+                        markdown += `### ${act.name}\n\n`;
+                    }
+                    if (act.beats && Array.isArray(act.beats)) {
+                        act.beats.forEach(beat => {
+                            markdown += `- ${beat}\n`;
+                        });
+                        markdown += '\n';
+                    }
+                });
+            }
+            
+            if (plan.npcs && Array.isArray(plan.npcs)) {
+                markdown += '## Key NPCs\n\n';
+                plan.npcs.forEach(npc => {
+                    if (npc.name) {
+                        markdown += `### ${npc.name}\n\n`;
+                        if (npc.public_face) markdown += `**Role:** ${npc.public_face}\n\n`;
+                        if (npc.true_goal) markdown += `**Goal:** ${npc.true_goal}\n\n`;
+                        if (npc.offers) markdown += `**Offers:** ${npc.offers}\n\n`;
+                        if (npc.secret) markdown += `**Secret:** ${npc.secret}\n\n`;
+                    }
+                });
+            }
+            
+            if (plan.locations && Array.isArray(plan.locations)) {
+                markdown += '## Locations\n\n';
+                plan.locations.forEach(location => {
+                    if (location.name) {
+                        markdown += `### ${location.name}\n\n`;
+                        if (location.specific_location) markdown += `**Location:** ${location.specific_location}\n\n`;
+                        if (location.sensory_cues && Array.isArray(location.sensory_cues)) {
+                            markdown += '**Atmosphere:**\n';
+                            location.sensory_cues.forEach(cue => {
+                                markdown += `- ${cue}\n`;
+                            });
+                            markdown += '\n';
+                        }
+                    }
+                });
+            }
         }
+        
+        return markdown;
+    }
+
+    showSessionModal(session) {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card campaign-modal" onclick="event.stopPropagation()">
+                    <h3>📜 Session Details (DM Only)</h3>
+                    
+                    <div class="campaign-metadata">
+                        <h4>Session ${session.turn_count || 0}</h4>
+                        <p><strong>Campaign:</strong> ${this.currentCampaign.campaign_name || 'Untitled Campaign'}</p>
+                        <p><strong>Created:</strong> ${new Date(session.created_at).toLocaleDateString()}</p>
+                        <p><strong>Status:</strong> ${session.status || 'Unknown'}</p>
+                    </div>
+                    
+                    <h4>📖 Session Plan & Details:</h4>
+                    <div class="campaign-outline markdown-container">
+                        ${this.formatSessionContent(session)}
+                    </div>
+                    
+                    <div class="text-center mt-20">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Close</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    formatSessionContent(session) {
+        // Convert session data to markdown
+        const markdown = this.convertSessionToMarkdown(session);
+        
+        // Convert markdown to HTML using marked.js
+        const htmlContent = marked.parse(markdown);
+        
+        // Make sections collapsible (except h1)
+        const collapsibleContent = this.makeCollapsible(htmlContent);
+        
+        return `<div class="markdown-content">${collapsibleContent}</div>`;
+    }
+
+    showThemedConfirm(message, onConfirm, onCancel = null) {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center; padding: 20px;">
+                <div class="card" style="max-width: 400px; text-align: center;" onclick="event.stopPropagation()">
+                    <h3>⚠️ Confirm Action</h3>
+                    <p style="margin: 20px 0; font-size: 1.1em;">${message}</p>
+                    
+                    <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove(); ${onCancel ? 'arguments[0]()' : ''}">Cancel</button>
+                        <button class="btn btn-danger" onclick="this.closest('[style*=fixed]').remove(); arguments[0]()">Confirm</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add event listeners
+        const buttons = modal.querySelectorAll('button');
+        buttons[1].addEventListener('click', (e) => {
+            modal.remove();
+            onConfirm();
+        });
+        buttons[0].addEventListener('click', (e) => {
+            modal.remove();
+            if (onCancel) onCancel();
+        });
+        
+        document.body.appendChild(modal);
+    }
+
+    async closeSession(sessionId) {
+        this.showThemedConfirm(
+            'Are you sure you want to close this session? It cannot be reopened.',
+            async () => {
+                try {
+                    await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${sessionId}/close`, {
+                        method: 'POST'
+                    });
+                    
+                    this.showAlert('Session closed successfully!', 'success');
+                    await this.refreshSessions();
+                } catch (error) {
+                    console.error('Failed to close session:', error);
+                    this.showAlert('Failed to close session', 'error');
+                }
+            }
+        );
     }
 
     // Chat/Play Interface
