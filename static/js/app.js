@@ -288,11 +288,43 @@ class DnDApp {
         
         // Update campaign info
         if (campaignInfo) {
+            // Character limits matching Campaign Builder format (manual truncation like Campaign Builder)
+            const campaignName = this.currentCampaign.campaign_name || 'Untitled Campaign';
+            const worldName = this.currentCampaign.world_collection || 'Unknown';
+            const description = this.currentCampaign.user_description || 'No description';
+            
+            const truncatedName = campaignName.length > 40 ? campaignName.slice(0, 40) + '...' : campaignName;
+            const truncatedWorld = worldName.length > 15 ? worldName.slice(0, 15) + '...' : worldName;
+            const truncatedDescription = description.length > 60 ? description.slice(0, 60) + '...' : description;
+            
+            // Get session count for this campaign
+            const sessionCount = this.sessions.length || 0;
+            const sessionText = sessionCount === 0 ? 'No sessions yet' : 
+                               sessionCount === 1 ? '1 session' : 
+                               `${sessionCount} sessions`;
+            
+            // Format dates
+            const createdDate = this.currentCampaign.creation_time || this.currentCampaign.created_at;
+            const lastPlayed = this.currentCampaign.last_played ? 
+                new Date(this.currentCampaign.last_played).toLocaleDateString() : 'Never';
+            
             campaignInfo.innerHTML = `
-                <h3>${this.currentCampaign.campaign_name || 'Untitled Campaign'}</h3>
-                <p><strong>World:</strong> ${this.currentCampaign.world_collection}</p>
-                <p><strong>Description:</strong> ${this.currentCampaign.user_description || 'No description'}</p>
+                <h3>${truncatedName}</h3>
+                <div class="campaign-info-compact">
+                    <div class="campaign-info-row">
+                        <b>WORLD:</b> ${truncatedWorld} &nbsp;&nbsp;&nbsp; <b>DESCRIPTION:</b> ${truncatedDescription}
+                    </div>
+                    <div class="campaign-info-row">
+                        <b>CREATED:</b> ${new Date(createdDate).toLocaleDateString()} &nbsp;&nbsp;&nbsp; <b>LAST PLAYED:</b> ${lastPlayed} &nbsp;&nbsp;&nbsp; <b>SESSIONS:</b> ${sessionText}
+                    </div>
+                </div>
             `;
+        }
+        
+        // Show create session button when campaign is selected
+        const createBtn = document.getElementById('create-session-btn');
+        if (createBtn) {
+            createBtn.style.display = 'block';
         }
 
         if (this.sessions.length === 0) {

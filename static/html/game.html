@@ -110,12 +110,15 @@
                 <h2>Session Manager</h2>
                 <p>Manage game sessions for your selected campaign.</p>
 
-                <div id="current-campaign-info" class="card">
-                    <p>Select a campaign from the Campaign Builder to manage sessions.</p>
-                    <button class="btn btn-secondary" onclick="app.showTab('campaigns')">Back to Campaigns</button>
+                <div class="card-grid">
+                    <div id="current-campaign-info" class="card">
+                        <p>Select a campaign from the Campaign Builder to manage sessions.</p>
+                        <button class="btn btn-secondary" onclick="app.showTab('campaigns')">Back to Campaigns</button>
+                    </div>
                 </div>
 
                 <div style="margin-top: 20px;">
+                    <button id="create-session-btn" class="btn" onclick="app.createSession()" style="display: none; margin-bottom: 20px;">Create New Session</button>
                     <h3 style="margin-bottom: 20px;">Game Sessions</h3>
                     
                     <div id="sessions-list">
@@ -172,6 +175,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
-    <script src="/static/js/app.js?v=20250921-1852"></script>
+    <script src="/static/js/app.js?v=20250921-1907"></script>
 </body>
 </html>
