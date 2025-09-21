@@ -61,6 +61,15 @@ async def get_campaigns(request):
     """GET /api/campaigns - List campaign IDs only"""
     try:
         campaigns = await list_campaigns()
+        
+        # Add session counts to each campaign
+        for campaign in campaigns:
+            try:
+                sessions = await list_sessions(campaign["campaign_id"])
+                campaign["session_count"] = len(sessions) if sessions else 0
+            except Exception:
+                campaign["session_count"] = 0
+        
         campaign_ids = [c["campaign_id"] for c in campaigns]
         return JSONResponse({"campaign_ids": campaign_ids})
     except Exception as e:
@@ -86,6 +95,14 @@ async def get_campaign(request):
         campaign = await load_campaign(campaign_id)
         if not campaign:
             return JSONResponse({"error": "Campaign not found"}, status_code=404)
+        
+        # Add session count to campaign data
+        try:
+            sessions = await list_sessions(campaign_id)
+            campaign["session_count"] = len(sessions) if sessions else 0
+        except Exception:
+            campaign["session_count"] = 0
+            
         return JSONResponse(campaign)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
