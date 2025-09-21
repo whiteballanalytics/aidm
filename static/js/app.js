@@ -282,6 +282,7 @@ class DnDApp {
 
     renderSessions() {
         const container = document.getElementById('sessions-list');
+        const buttonContainer = document.getElementById('session-button-container');
         const campaignInfo = document.getElementById('current-campaign-info');
         
         if (!container || !this.currentCampaign) return;
@@ -321,18 +322,26 @@ class DnDApp {
             `;
         }
 
+        // Handle button rendering in the separate container above "Game Sessions" header
+        if (buttonContainer) {
+            if (this.sessions.length === 0) {
+                buttonContainer.innerHTML = `<button class="btn" onclick="app.createSession()">Create First Session</button>`;
+            } else {
+                // Check if there's an active (open) session
+                const hasActiveSession = this.sessions.some(session => session.status === 'open');
+                buttonContainer.innerHTML = !hasActiveSession ? 
+                    `<button class="btn" onclick="app.createSession()">Create New Session</button>` : '';
+            }
+        }
+
         if (this.sessions.length === 0) {
             container.innerHTML = `
                 <div class="text-center mt-20">
-                    <button class="btn" onclick="app.createSession()">Create First Session</button>
-                    <p class="mt-20">No sessions created yet for this campaign.</p>
+                    <p>No sessions created yet for this campaign.</p>
                 </div>
             `;
             return;
         }
-
-        // Check if there's an active (open) session
-        const hasActiveSession = this.sessions.some(session => session.status === 'open');
 
         const sessionsHTML = this.sessions.map(session => {
             const statusClass = session.status === 'open' ? 'status-active' : 'status-complete';
@@ -362,14 +371,7 @@ class DnDApp {
             `;
         }).join('');
         
-        // Show create button at TOP only if no active session exists
-        const createButtonHTML = !hasActiveSession ? `
-            <div class="text-center mb-20">
-                <button class="btn" onclick="app.createSession()">Create New Session</button>
-            </div>
-        ` : '';
-        
-        container.innerHTML = createButtonHTML + sessionsHTML;
+        container.innerHTML = sessionsHTML;
     }
 
     // Campaign Management
