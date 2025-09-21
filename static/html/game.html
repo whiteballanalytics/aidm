@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎲 D&D AI Dungeon Master</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎲 D&D AI Dungeon Master</h1>
+            <p>AI-Powered Dungeons & Dragons Experience</p>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" data-tab="campaigns">
+                🏰 Campaign Builder
+            </button>
+            <button class="nav-tab" data-tab="sessions">
+                📜 Session Manager
+            </button>
+            <button class="nav-tab" data-tab="play">
+                🎭 Play Mode
+            </button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            
+            <!-- Campaign Builder Tab -->
+            <div id="campaigns-tab" class="tab-content active">
+                <h2>Campaign Builder</h2>
+                <p>Create immersive campaigns with AI-generated storylines.</p>
+
+                <div class="card-grid">
+                    <!-- Create Campaign Form -->
+                    <div class="card">
+                        <h3>Create New Campaign</h3>
+                        <form id="create-campaign-form">
+                            <div class="form-group">
+                                <label class="form-label" for="campaign-name">Campaign Name</label>
+                                <input type="text" id="campaign-name" name="name" class="form-input" placeholder="Enter campaign name...">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="world-select">World Setting</label>
+                                <select id="world-select" name="world" class="form-select" required>
+                                    <option value="">Choose a world...</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="campaign-description">Campaign Description</label>
+                                <textarea id="campaign-description" name="description" class="form-textarea" 
+                                         placeholder="Describe your campaign theme, setting, or starting scenario..."></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn">Create Campaign</button>
+                        </form>
+                    </div>
+
+                    <!-- Campaign Information -->
+                    <div class="card">
+                        <h3>Available Worlds</h3>
+                        <div class="item-list">
+                            <div style="padding: 10px; background: #f8f9fa; margin: 5px 0; border-radius: 5px;">
+                                <strong>Fiction</strong> - General fantasy adventures
+                            </div>
+                            <div style="padding: 10px; background: #f8f9fa; margin: 5px 0; border-radius: 5px;">
+                                <strong>SwordCoast</strong> - Classic D&D Forgotten Realms setting
+                            </div>
+                            <div style="padding: 10px; background: #f8f9fa; margin: 5px 0; border-radius: 5px;">
+                                <strong>MiddleEarth</strong> - Tolkien-inspired adventures
+                            </div>
+                        </div>
+                        
+                        <h4 style="margin-top: 20px;">How It Works</h4>
+                        <ol>
+                            <li>Choose a world setting for your adventure</li>
+                            <li>Provide a campaign description or theme</li>
+                            <li>AI generates a complete campaign outline</li>
+                            <li>Start creating game sessions</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <!-- Existing Campaigns -->
+                <div style="margin-top: 30px;">
+                    <h3>Your Campaigns</h3>
+                    <div id="campaigns-list">
+                        <div class="text-center mt-20">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                <span>Loading campaigns...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Session Manager Tab -->
+            <div id="sessions-tab" class="tab-content">
+                <h2>Session Manager</h2>
+                <p>Manage game sessions for your selected campaign.</p>
+
+                <div id="current-campaign-info" class="card">
+                    <p>Select a campaign from the Campaign Builder to manage sessions.</p>
+                    <button class="btn btn-secondary" onclick="app.showTab('campaigns')">Back to Campaigns</button>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <div class="flex" style="justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3>Game Sessions</h3>
+                        <button class="btn" onclick="app.createSession()">Create New Session</button>
+                    </div>
+                    
+                    <div id="sessions-list">
+                        <div class="text-center mt-20">
+                            <p>No campaign selected</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Play Mode Tab -->
+            <div id="play-tab" class="tab-content">
+                <h2>Play Mode</h2>
+                <p>Interactive D&D gameplay with your AI Dungeon Master.</p>
+
+                <div id="current-play-info" class="card">
+                    <p>Select a session from the Session Manager to start playing.</p>
+                    <button class="btn btn-secondary" onclick="app.showTab('sessions')">Back to Sessions</button>
+                </div>
+
+                <div class="chat-container">
+                    <div id="chat-messages" class="chat-messages">
+                        <div class="chat-message system">
+                            Select an active session to begin your adventure
+                        </div>
+                    </div>
+                    
+                    <div class="chat-input-area">
+                        <form id="chat-form" style="display: flex; width: 100%; gap: 15px;">
+                            <input 
+                                type="text" 
+                                id="chat-input" 
+                                class="chat-input" 
+                                placeholder="Describe your action..."
+                                autocomplete="off"
+                            >
+                            <button type="submit" class="btn">Send</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 20px;">
+                    <h4>🎮 How to Play</h4>
+                    <ul>
+                        <li><strong>Describe your actions:</strong> "I examine the door for traps"</li>
+                        <li><strong>Interact with the world:</strong> "I talk to the innkeeper"</li>
+                        <li><strong>Make choices:</strong> "I choose to help the villagers"</li>
+                        <li><strong>Ask questions:</strong> "What do I see in the room?"</li>
+                    </ul>
+                    <p><em>The AI Dungeon Master will respond to your actions and guide the story forward.</em></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
