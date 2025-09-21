@@ -576,6 +576,130 @@ class DnDApp {
         }
     }
 
+    convertJSONToMarkdown(outlineData) {
+        if (!outlineData || typeof outlineData !== 'object') {
+            return '# Campaign Outline\n\nNo structured outline available.';
+        }
+
+        let markdown = '';
+        
+        // Handle common campaign outline structure
+        const sections = {
+            'summary': '# Campaign Summary',
+            'overview': '# Campaign Overview', 
+            'description': '# Campaign Description',
+            'setting': '## Setting and World',
+            'world': '## Setting and World',
+            'plot_hooks': '## Main Plot Hooks',
+            'main_plot': '## Main Plot Hooks',
+            'story_hooks': '## Main Plot Hooks',
+            'npcs': '## Key NPCs',
+            'key_npcs': '## Key NPCs',
+            'characters': '## Key NPCs',
+            'locations': '## Important Locations',
+            'key_locations': '## Important Locations',
+            'important_locations': '## Important Locations',
+            'factions': '## Factions and Organizations',
+            'organizations': '## Factions and Organizations',
+            'themes': '## Campaign Themes',
+            'tone': '## Campaign Tone and Themes',
+            'background': '## Background Information',
+            'history': '## Background and History',
+            'adventure_hooks': '## Adventure Hooks',
+            'session_ideas': '## Session Ideas',
+            'encounters': '## Potential Encounters',
+            'treasure': '## Rewards and Treasure',
+            'rewards': '## Rewards and Treasure'
+        };
+
+        // Start with summary/overview as visible section
+        const summaryKeys = ['summary', 'overview', 'description'];
+        const summaryKey = Object.keys(outlineData).find(key => 
+            summaryKeys.includes(key.toLowerCase())
+        );
+        
+        if (summaryKey) {
+            markdown += `# Campaign Overview\n\n${outlineData[summaryKey]}\n\n`;
+        }
+
+        // Process other sections
+        Object.keys(outlineData).forEach(key => {
+            if (summaryKeys.includes(key.toLowerCase())) return; // Skip summary, already added
+            
+            const lowerKey = key.toLowerCase();
+            const heading = sections[lowerKey] || `## ${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
+            const value = outlineData[key];
+            
+            markdown += `${heading}\n\n`;
+            
+            if (typeof value === 'object') {
+                if (Array.isArray(value)) {
+                    value.forEach((item, index) => {
+                        if (typeof item === 'object') {
+                            markdown += `### ${item.name || item.title || `Item ${index + 1}`}\n\n`;
+                            Object.keys(item).forEach(subKey => {
+                                if (subKey !== 'name' && subKey !== 'title') {
+                                    markdown += `**${subKey.replace(/_/g, ' ')}:** ${item[subKey]}\n\n`;
+                                }
+                            });
+                        } else {
+                            markdown += `- ${item}\n`;
+                        }
+                    });
+                } else {
+                    Object.keys(value).forEach(subKey => {
+                        markdown += `**${subKey.replace(/_/g, ' ')}:** ${value[subKey]}\n\n`;
+                    });
+                }
+            } else {
+                markdown += `${value}\n\n`;
+            }
+        });
+
+        return markdown;
+    }
+
+    makeCollapsible(htmlContent) {
+        // Create a temporary div to parse HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        
+        // Find all h2, h3, h4 headings (keep h1 visible)
+        const headings = tempDiv.querySelectorAll('h2, h3, h4');
+        
+        headings.forEach(heading => {
+            // Collect content until next heading of same or higher level
+            const headingLevel = parseInt(heading.tagName.charAt(1));
+            const content = [];
+            let nextElement = heading.nextElementSibling;
+            
+            while (nextElement) {
+                const nextLevel = nextElement.tagName.startsWith('H') ? parseInt(nextElement.tagName.charAt(1)) : null;
+                if (nextLevel && nextLevel <= headingLevel) {
+                    break;
+                }
+                content.push(nextElement);
+                const temp = nextElement;
+                nextElement = nextElement.nextElementSibling;
+                temp.remove();
+            }
+            
+            // Create collapsible structure
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.innerHTML = heading.innerHTML;
+            summary.className = 'markdown-heading-summary';
+            
+            details.appendChild(summary);
+            content.forEach(el => details.appendChild(el));
+            
+            // Replace heading with details
+            heading.parentNode.replaceChild(details, heading);
+        });
+        
+        return tempDiv.innerHTML;
+    }
+
     formatCampaignOutline(outline) {
         if (!outline) return '<p>No outline available</p>';
         
@@ -584,35 +708,19 @@ class DnDApp {
         try {
             outlineData = typeof outline === 'string' ? JSON.parse(outline) : outline;
         } catch (e) {
-            return `<pre>${outline}</pre>`;
+            return `<div class="markdown-content">${marked.parse(outline || 'No outline available')}</div>`;
         }
         
-        // If it's not an object, just display as text
-        if (typeof outlineData !== 'object') {
-            return `<pre>${outline}</pre>`;
-        }
+        // Convert JSON to markdown
+        const markdown = this.convertJSONToMarkdown(outlineData);
         
-        let formattedHtml = '';
+        // Convert markdown to HTML using marked.js
+        const htmlContent = marked.parse(markdown);
         
-        // Create collapsible sections for different parts
-        Object.keys(outlineData).forEach(key => {
-            const value = outlineData[key];
-            const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            
-            formattedHtml += `
-                <div class="collapsible" onclick="this.classList.toggle('expanded')">
-                    <div class="collapsible-header">
-                        <span>${displayKey}</span>
-                        <span class="collapsible-toggle">▶</span>
-                    </div>
-                    <div class="collapsible-content">
-                        <pre>${typeof value === 'object' ? JSON.stringify(value, null, 2) : value}</pre>
-                    </div>
-                </div>
-            `;
-        });
+        // Make sections collapsible (except h1)
+        const collapsibleContent = this.makeCollapsible(htmlContent);
         
-        return formattedHtml || `<pre>${outline}</pre>`;
+        return `<div class="markdown-content">${collapsibleContent}</div>`;
     }
 
     showCampaignModal(campaign) {
@@ -636,7 +744,7 @@ class DnDApp {
                     </div>
                     
                     <h4>📖 AI-Generated Campaign Outline:</h4>
-                    <div class="campaign-outline">
+                    <div class="campaign-outline markdown-container">
                         ${this.formatCampaignOutline(campaign.outline)}
                     </div>
                     
