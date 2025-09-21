@@ -194,7 +194,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Send "thinking" status
                     await manager.send_personal_message({
                         "type": "dm_thinking",
-                        "message": "The Dungeon Master is considering your action..."
+                        "message": "The Dungeon Master is considering your action... this can take a few minutes"
                     }, session_key)
                     
                     # Process the turn

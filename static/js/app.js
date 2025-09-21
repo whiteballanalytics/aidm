@@ -187,22 +187,30 @@ class DnDApp {
             return;
         }
 
-        container.innerHTML = this.campaigns.map(campaign => `
-            <div class="card">
-                <h3>${campaign.campaign_name || 'Untitled Campaign'}</h3>
-                <p><strong>World:</strong> ${campaign.world_collection}</p>
-                <p><strong>Description:</strong> ${campaign.user_description || 'No description'}</p>
-                <p><strong>Created:</strong> ${new Date(campaign.creation_time).toLocaleDateString()}</p>
-                <div class="item-actions">
-                    <button class="btn" onclick="app.selectCampaign('${campaign.campaign_id}')">
-                        Manage Sessions
-                    </button>
-                    <button class="btn btn-secondary" onclick="app.viewCampaign('${campaign.campaign_id}')">
-                        View Details
-                    </button>
+        container.innerHTML = this.campaigns.map(campaign => {
+            const createdDate = campaign.creation_time || campaign.created_at;
+            const lastPlayed = campaign.last_played ? 
+                `<p><strong>Last Played:</strong> ${new Date(campaign.last_played).toLocaleDateString()}</p>` : 
+                '<p><strong>Last Played:</strong> Never</p>';
+            
+            return `
+                <div class="card">
+                    <h3>${campaign.campaign_name || campaign.name || 'Untitled Campaign'}</h3>
+                    <p><strong>World:</strong> ${campaign.world_collection}</p>
+                    <p><strong>Description:</strong> ${campaign.user_description || campaign.description || 'No description'}</p>
+                    <p><strong>Created:</strong> ${new Date(createdDate).toLocaleDateString()}</p>
+                    ${lastPlayed}
+                    <div class="item-actions">
+                        <button class="btn" onclick="app.selectCampaign('${campaign.campaign_id}')">
+                            Manage Sessions
+                        </button>
+                        <button class="btn btn-secondary" onclick="app.viewCampaign('${campaign.campaign_id}')">
+                            View Details (DM only)
+                        </button>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     renderSessions() {
@@ -275,7 +283,7 @@ class DnDApp {
         }
 
         try {
-            this.showLoading('Creating campaign...');
+            this.showLoading('Creating campaign... this can take a few minutes');
             await this.apiRequest('/api/campaigns', {
                 method: 'POST',
                 body: JSON.stringify(data)
@@ -314,7 +322,7 @@ class DnDApp {
         if (!this.currentCampaign) return;
         
         try {
-            this.showLoading('Creating session...');
+            this.showLoading('Creating session... this can take a few minutes');
             await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions`, {
                 method: 'POST'
             });
@@ -331,6 +339,16 @@ class DnDApp {
     async playSession(sessionId) {
         try {
             this.currentSession = await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${sessionId}`);
+            
+            // Update last_played timestamp
+            try {
+                await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/last_played`, {
+                    method: 'PUT'
+                });
+            } catch (error) {
+                console.warn('Failed to update last played timestamp:', error);
+            }
+            
             this.showTab('play');
             this.initializeChat();
         } catch (error) {
