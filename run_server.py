@@ -58,10 +58,11 @@ manager = ConnectionManager()
 
 # Campaign Management
 async def get_campaigns(request):
-    """GET /api/campaigns - List all campaigns"""
+    """GET /api/campaigns - List campaign IDs only"""
     try:
         campaigns = await list_campaigns()
-        return JSONResponse({"campaigns": campaigns})
+        campaign_ids = [c["campaign_id"] for c in campaigns]
+        return JSONResponse({"campaign_ids": campaign_ids})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -91,14 +92,16 @@ async def get_campaign(request):
 
 # Session Management
 async def get_sessions(request):
-    """GET /api/campaigns/{campaign_id}/sessions - List sessions for campaign"""
+    """GET /api/campaigns/{campaign_id}/sessions - List session IDs only"""
     campaign_id = request.path_params["campaign_id"]
     try:
         sessions = await list_sessions(campaign_id)
         active_session = await get_active_session(campaign_id)
+        session_ids = [s["session_id"] for s in sessions]
+        active_id = active_session["session_id"] if active_session else None
         return JSONResponse({
-            "sessions": sessions,
-            "active_session": active_session
+            "session_ids": session_ids,
+            "active_session_id": active_id
         })
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
