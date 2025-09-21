@@ -320,12 +320,6 @@ class DnDApp {
                 </div>
             `;
         }
-        
-        // Show create session button when campaign is selected
-        const createBtn = document.getElementById('create-session-btn');
-        if (createBtn) {
-            createBtn.style.display = 'block';
-        }
 
         if (this.sessions.length === 0) {
             container.innerHTML = `
