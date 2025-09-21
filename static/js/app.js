@@ -409,7 +409,9 @@ class DnDApp {
             
             if (showCount) {
                 const remaining = arr.length - opts.arrayItemLimit;
-                markdown += `- *(... and ${remaining} more items)*\n`;
+                const expandId = 'expand_' + Math.random().toString(36).substr(2, 9);
+                markdown += `- **[Show ${remaining} more items...]** {data-expand="${expandId}" data-items="${this.encodeForAttribute(JSON.stringify(arr.slice(opts.arrayItemLimit)))}" data-opts="${this.encodeForAttribute(JSON.stringify(opts))}" data-path="${this.encodeForAttribute(JSON.stringify([...path, 'remaining']))}"}\n`;
+                markdown += `\n{expand-placeholder-${expandId}}\n`;
             }
             markdown += '\n';
         } else if (isObjectArray) {
@@ -429,7 +431,9 @@ class DnDApp {
             
             if (showCount) {
                 const remaining = arr.length - opts.arrayItemLimit;
-                markdown += `*(... and ${remaining} more items)*\n\n`;
+                const expandId = 'expand_' + Math.random().toString(36).substr(2, 9);
+                markdown += `**[Show ${remaining} more items...]** {data-expand="${expandId}" data-items="${this.encodeForAttribute(JSON.stringify(arr.slice(opts.arrayItemLimit)))}" data-opts="${this.encodeForAttribute(JSON.stringify(opts))}" data-path="${this.encodeForAttribute(JSON.stringify([...path, 'remaining']))}"}\n\n`;
+                markdown += `{expand-placeholder-${expandId}}\n\n`;
             }
         } else {
             // Mixed array - render each item separately
@@ -441,7 +445,9 @@ class DnDApp {
             
             if (showCount) {
                 const remaining = arr.length - opts.arrayItemLimit;
-                markdown += `*(... and ${remaining} more items)*\n\n`;
+                const expandId = 'expand_' + Math.random().toString(36).substr(2, 9);
+                markdown += `**[Show ${remaining} more items...]** {data-expand="${expandId}" data-items="${this.encodeForAttribute(JSON.stringify(arr.slice(opts.arrayItemLimit)))}" data-opts="${this.encodeForAttribute(JSON.stringify(opts))}" data-path="${this.encodeForAttribute(JSON.stringify([...path, 'remaining']))}"}\n\n`;
+                markdown += `{expand-placeholder-${expandId}}\n\n`;
             }
         }
         
@@ -567,23 +573,210 @@ class DnDApp {
     }
     
     /**
-     * Safe markdown to HTML conversion with sanitization
+     * Safe markdown to HTML conversion with proper sanitization
      */
     safeMarkdownToHTML(markdown) {
         try {
-            // Convert markdown to HTML using marked.js
-            let htmlContent = marked.parse(markdown);
+            // Configure marked with safe options
+            const renderer = new marked.Renderer();
             
-            // Basic XSS prevention - remove script tags and dangerous attributes
-            htmlContent = htmlContent
-                .replace(/<script[^>]*>.*?<\/script>/gi, '')
-                .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
-                .replace(/javascript:/gi, '');
+            // Override dangerous features
+            renderer.html = () => '';  // Block raw HTML
+            renderer.link = (href, title, text) => {
+                // Sanitize links
+                if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                    return `<a href="${this.escapeHTML(href)}" title="${this.escapeHTML(title || '')}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+                }
+                return text;
+            };
+            
+            // Convert markdown to HTML with safe renderer
+            let htmlContent = marked.parse(markdown, { renderer });
+            
+            // Additional safety layer - allowlist approach
+            htmlContent = this.sanitizeHTML(htmlContent);
             
             return htmlContent;
         } catch (e) {
             console.warn('Failed to parse markdown:', e);
             return `<pre>${this.escapeHTML(markdown)}</pre>`;
+        }
+    }
+    
+    /**
+     * Sanitize HTML using allowlist approach
+     */
+    sanitizeHTML(html) {
+        // Create a temporary DOM for parsing
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        
+        // Allowlisted tags and attributes
+        const allowedTags = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'code', 'pre', 'blockquote', 'details', 'summary', 'button', 'div'];
+        const allowedAttrs = ['href', 'title', 'class', 'id', 'onclick', 'target', 'rel'];
+        
+        this.sanitizeElement(temp, allowedTags, allowedAttrs);
+        return temp.innerHTML;
+    }
+    
+    /**
+     * Recursively sanitize DOM elements
+     */
+    sanitizeElement(element, allowedTags, allowedAttrs) {
+        const children = Array.from(element.children);
+        
+        children.forEach(child => {
+            if (!allowedTags.includes(child.tagName.toLowerCase())) {
+                // Replace with text content
+                const textNode = document.createTextNode(child.textContent);
+                child.parentNode.replaceChild(textNode, child);
+            } else {
+                // Clean attributes
+                const attrs = Array.from(child.attributes);
+                attrs.forEach(attr => {
+                    if (!allowedAttrs.includes(attr.name.toLowerCase())) {
+                        child.removeAttribute(attr.name);
+                    }
+                });
+                
+                // Recursively clean children
+                this.sanitizeElement(child, allowedTags, allowedAttrs);
+            }
+        });
+    }
+    
+    /**
+     * Encode data for safe attribute embedding
+     */
+    encodeForAttribute(data) {
+        return btoa(encodeURIComponent(data));
+    }
+    
+    /**
+     * Decode data from attribute
+     */
+    decodeFromAttribute(encoded) {
+        return decodeURIComponent(atob(encoded));
+    }
+    
+    /**
+     * Process show-more placeholders after safe HTML rendering
+     */
+    processShowMorePlaceholders(container) {
+        // Find all show-more triggers and placeholders
+        const triggers = container.querySelectorAll('strong');
+        
+        triggers.forEach(trigger => {
+            const text = trigger.textContent;
+            if (text.includes('[Show') && text.includes('more items...]')) {
+                // Extract data attributes from parent element text
+                const parentText = trigger.parentElement.textContent;
+                const match = parentText.match(/\{data-expand="([^"]+)" data-items="([^"]+)" data-opts="([^"]+)" data-path="([^"]+)"\}/);
+                if (match) {
+                    const [, expandId, encodedItems, encodedOpts, encodedPath] = match;
+                    
+                    // Create button element
+                    const button = document.createElement('button');
+                    button.className = 'show-more-btn';
+                    button.textContent = text.replace(/^\[|\]$/g, '');
+                    button.setAttribute('data-expand-id', expandId);
+                    button.setAttribute('data-items', encodedItems);
+                    button.setAttribute('data-opts', encodedOpts);
+                    button.setAttribute('data-path', encodedPath);
+                    
+                    // Create placeholder div
+                    const placeholder = document.createElement('div');
+                    placeholder.id = expandId;
+                    placeholder.className = 'hidden-content';
+                    
+                    // Replace the trigger text with button
+                    trigger.parentElement.replaceChild(button, trigger);
+                    
+                    // Find and replace placeholder text using TreeWalker
+                    const walker = document.createTreeWalker(
+                        container,
+                        NodeFilter.SHOW_TEXT,
+                        {
+                            acceptNode: function(node) {
+                                return node.textContent.includes(`{expand-placeholder-${expandId}}`) ? 
+                                    NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+                            }
+                        }
+                    );
+                    
+                    let node;
+                    while (node = walker.nextNode()) {
+                        if (node.textContent.includes(`{expand-placeholder-${expandId}}`)) {
+                            node.parentNode.replaceChild(placeholder, node);
+                            break;
+                        }
+                    }
+                    
+                    // Fallback: insert after button if placeholder not found
+                    if (!placeholder.parentNode) {
+                        button.parentNode.insertBefore(placeholder, button.nextSibling);
+                    }
+                }
+            }
+        });
+        
+        // Add event delegation for show-more buttons
+        container.addEventListener('click', (e) => {
+            if (e.target.classList.contains('show-more-btn')) {
+                this.handleShowMoreClick(e.target);
+            }
+        });
+    }
+    
+    /**
+     * Handle show-more button clicks
+     */
+    handleShowMoreClick(button) {
+        const expandId = button.getAttribute('data-expand-id');
+        const encodedItems = button.getAttribute('data-items');
+        const encodedOpts = button.getAttribute('data-opts');
+        const encodedPath = button.getAttribute('data-path');
+        
+        try {
+            const items = JSON.parse(this.decodeFromAttribute(encodedItems));
+            const options = JSON.parse(this.decodeFromAttribute(encodedOpts));
+            const path = JSON.parse(this.decodeFromAttribute(encodedPath));
+            
+            this.expandArraySection(expandId, items, options, path);
+            button.style.display = 'none';
+        } catch (e) {
+            console.error('Failed to expand section:', e);
+            button.textContent = 'Error loading items';
+            button.disabled = true;
+        }
+    }
+    
+    /**
+     * Expand array section for "show more" functionality (updated)
+     */
+    expandArraySection(expandId, remainingItems, opts, path) {
+        const container = document.getElementById(expandId);
+        if (!container) return;
+        
+        try {
+            let markdown = '';
+            remainingItems.forEach((item, index) => {
+                const actualIndex = opts.arrayItemLimit + index;
+                if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+                    const title = this.getItemTitle(item, actualIndex);
+                    markdown += `### ${title}\n\n`;
+                    markdown += this.renderJSONToMarkdown(item, opts, [...path, actualIndex]);
+                } else {
+                    markdown += `- ${this.renderJSONToMarkdown(item, opts, [...path, actualIndex])}\n`;
+                }
+            });
+            
+            const htmlContent = this.safeMarkdownToHTML(markdown);
+            container.innerHTML = htmlContent;
+            container.style.display = 'block';
+        } catch (e) {
+            console.error('Failed to expand array section:', e);
+            container.innerHTML = '<p><em>Error loading additional items</em></p>';
         }
     }
     
@@ -864,13 +1057,21 @@ class DnDApp {
         // Convert session data to markdown using unified renderer
         const markdown = this.convertSessionToMarkdown(session);
         
-        // Convert markdown to HTML using marked.js with sanitization
+        // Convert markdown to HTML using safe parser
         const htmlContent = this.safeMarkdownToHTML(markdown);
         
         // Make sections collapsible (except h1)
         const collapsibleContent = this.makeCollapsible(htmlContent);
         
-        return `<div class="markdown-content">${collapsibleContent}</div>`;
+        // Create container and process show-more placeholders
+        const container = document.createElement('div');
+        container.className = 'markdown-content';
+        container.innerHTML = collapsibleContent;
+        
+        // Process placeholders for interactive functionality
+        this.processShowMorePlaceholders(container);
+        
+        return container.outerHTML;
     }
 
     showThemedConfirm(message, onConfirm, onCancel = null) {
@@ -1285,7 +1486,15 @@ class DnDApp {
         // Make sections collapsible (except h1)
         const collapsibleContent = this.makeCollapsible(htmlContent);
         
-        return `<div class="markdown-content">${collapsibleContent}</div>`;
+        // Create container and process show-more placeholders
+        const container = document.createElement('div');
+        container.className = 'markdown-content';
+        container.innerHTML = collapsibleContent;
+        
+        // Process placeholders for interactive functionality
+        this.processShowMorePlaceholders(container);
+        
+        return container.outerHTML;
     }
 
     showCampaignModal(campaign) {

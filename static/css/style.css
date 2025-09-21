@@ -756,3 +756,23 @@ body {
 .flex { display: flex; }
 .flex-center { display: flex; align-items: center; justify-content: center; }
 .gap-10 { gap: 10px; }
+
+/* Show More Button Styles */
+.show-more-btn {
+    background: none;
+    border: none;
+    color: #007bff;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 0.9em;
+    padding: 0;
+    margin: 5px 0;
+}
+
+.show-more-btn:hover {
+    color: #0056b3;
+}
+
+.hidden-content {
+    display: none;
+}
