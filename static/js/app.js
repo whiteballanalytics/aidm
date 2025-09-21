@@ -238,7 +238,7 @@ class DnDApp {
             return;
         }
 
-        container.innerHTML = this.sessions.map(session => {
+        const sessionsHTML = this.sessions.map(session => {
             const statusClass = session.status === 'open' ? 'status-active' : 'status-complete';
             const statusText = session.status === 'open' ? 'Active' : 'Complete';
             
@@ -251,9 +251,10 @@ class DnDApp {
                             <p><strong>Started:</strong> ${new Date(session.creation_time).toLocaleDateString()}</p>
                         </div>
                         <div class="item-actions">
+                            <button class="btn btn-secondary" onclick="app.viewSession('${session.session_id}')">View Details</button>
                             ${session.status === 'open' ? 
                                 `<button class="btn" onclick="app.playSession('${session.session_id}')">Continue</button>` :
-                                `<button class="btn btn-secondary" onclick="app.viewSession('${session.session_id}')">View</button>`
+                                `<button class="btn btn-secondary" onclick="app.playSession('${session.session_id}')">View</button>`
                             }
                             ${session.status === 'open' ? 
                                 `<button class="btn btn-danger" onclick="app.closeSession('${session.session_id}')">Close</button>` :
@@ -264,6 +265,13 @@ class DnDApp {
                 </div>
             `;
         }).join('');
+        
+        // Add create button centered underneath sessions
+        container.innerHTML = sessionsHTML + `
+            <div class="text-center mt-20">
+                <button class="btn" onclick="app.createSession()">Create New Session</button>
+            </div>
+        `;
     }
 
     // Campaign Management
