@@ -462,8 +462,12 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
     )
     
     # Parse DM response and updates
-    update_payload = extract_update_payload(dm_response_raw) or {}
-    dm_response = strip_json_block(dm_response_raw)
+    # First extract narrative from RunResult format if needed
+    dm_response_clean = extract_narrative_from_runresult(dm_response_raw)
+    
+    # Then strip any JSON blocks
+    update_payload = extract_update_payload(dm_response_clean) or {}
+    dm_response = strip_json_block(dm_response_clean)
     
     # Update scene state if provided
     scene_patch = update_payload.get("scene_state_patch", {})
@@ -541,6 +545,41 @@ def extract_update_payload(dm_text: str) -> Optional[dict[str, Any]]:
 def strip_json_block(dm_text: str) -> str:
     """Remove the trailing JSON block so only narration is shown to the player."""
     return JSON_BLOCK_RE.sub("", dm_text).rstrip()
+
+def extract_narrative_from_runresult(text: str) -> str:
+    """Extract just the narrative content from RunResult format."""
+    if not text or not isinstance(text, str):
+        return text
+    
+    # Check if this is a RunResult format
+    if text.startswith("RunResult:") and "Final output (str):" in text:
+        import re
+        
+        # Use regex to extract content after "Final output (str):" 
+        # and stop at RunResult metadata (whether inline or on new lines)
+        pattern = r"Final output \(str\):\s*(.*?)(?:\s*-\s*\d+\s+(?:new item\(s\)|raw response\(s\)|input guardrail result\(s\)|output guardrail result\(s\))|(?:\s*\(See `RunResult`)|$)"
+        
+        match = re.search(pattern, text, re.DOTALL)
+        if match:
+            narrative_content = match.group(1).strip()
+            
+            # Additional cleanup: remove any trailing metadata that might not be caught
+            # Look for patterns like "- 1 new item(s)" at the end
+            cleanup_patterns = [
+                r'\s*-\s*\d+\s+new item\(s\).*$',
+                r'\s*-\s*\d+\s+raw response\(s\).*$', 
+                r'\s*-\s*\d+\s+input guardrail result\(s\).*$',
+                r'\s*-\s*\d+\s+output guardrail result\(s\).*$',
+                r'\s*\(See `RunResult`.*$'
+            ]
+            
+            for cleanup_pattern in cleanup_patterns:
+                narrative_content = re.sub(cleanup_pattern, '', narrative_content, flags=re.DOTALL)
+            
+            return narrative_content.strip()
+    
+    # If not RunResult format, return as-is
+    return text
 
 def merge_scene_patch(scene: SceneState, patch: dict[str, Any]) -> SceneState:
     """Shallow merge: if a top-level field is present in patch, replace it in the scene."""
