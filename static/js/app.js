@@ -565,6 +565,37 @@ class DnDApp {
         
         return null;
     }
+    
+    /**
+     * Safe markdown to HTML conversion with sanitization
+     */
+    safeMarkdownToHTML(markdown) {
+        try {
+            // Convert markdown to HTML using marked.js
+            let htmlContent = marked.parse(markdown);
+            
+            // Basic XSS prevention - remove script tags and dangerous attributes
+            htmlContent = htmlContent
+                .replace(/<script[^>]*>.*?<\/script>/gi, '')
+                .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+                .replace(/javascript:/gi, '');
+            
+            return htmlContent;
+        } catch (e) {
+            console.warn('Failed to parse markdown:', e);
+            return `<pre>${this.escapeHTML(markdown)}</pre>`;
+        }
+    }
+    
+    /**
+     * Escape HTML to prevent XSS
+     */
+    escapeHTML(text) {
+        if (typeof text !== 'string') return text;
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
     renderSessions() {
         const container = document.getElementById('sessions-list');
@@ -781,80 +812,24 @@ class DnDApp {
             return '# Session Details\n\nNo session data available.';
         }
 
-        let markdown = '';
+        // Create a highlights section for key information
+        let highlights = '# Session Highlights\n\n';
+        highlights += `**Turn Count:** ${session.turn_count || 0}\n\n`;
+        highlights += `**Status:** ${session.status || 'Unknown'}\n\n`;
+        highlights += `**Last Activity:** ${session.last_activity ? new Date(session.last_activity).toLocaleString() : 'Never'}\n\n`;
         
-        // Session Summary
-        markdown += '# Session Summary\n\n';
         if (session.summary) {
-            markdown += `${session.summary}\n\n`;
+            highlights += `**Summary:** ${this.escapeMarkdown(session.summary)}\n\n`;
         }
-        
-        // Session Info
-        markdown += `**Turn Count:** ${session.turn_count || 0}\n\n`;
-        markdown += `**Status:** ${session.status || 'Unknown'}\n\n`;
-        markdown += `**Last Activity:** ${session.last_activity ? new Date(session.last_activity).toLocaleString() : 'Never'}\n\n`;
-        
-        // Session Plan
-        if (session.session_plan) {
-            const plan = session.session_plan;
-            
-            if (plan.narrative_overview) {
-                markdown += '## Story Overview\n\n';
-                markdown += `${plan.narrative_overview}\n\n`;
-            }
-            
-            if (plan.objective) {
-                markdown += '## Objective\n\n';
-                markdown += `${plan.objective}\n\n`;
-            }
-            
-            if (plan.acts && Array.isArray(plan.acts)) {
-                markdown += '## Story Acts\n\n';
-                plan.acts.forEach(act => {
-                    if (act.name) {
-                        markdown += `### ${act.name}\n\n`;
-                    }
-                    if (act.beats && Array.isArray(act.beats)) {
-                        act.beats.forEach(beat => {
-                            markdown += `- ${beat}\n`;
-                        });
-                        markdown += '\n';
-                    }
-                });
-            }
-            
-            if (plan.npcs && Array.isArray(plan.npcs)) {
-                markdown += '## Key NPCs\n\n';
-                plan.npcs.forEach(npc => {
-                    if (npc.name) {
-                        markdown += `### ${npc.name}\n\n`;
-                        if (npc.public_face) markdown += `**Role:** ${npc.public_face}\n\n`;
-                        if (npc.true_goal) markdown += `**Goal:** ${npc.true_goal}\n\n`;
-                        if (npc.offers) markdown += `**Offers:** ${npc.offers}\n\n`;
-                        if (npc.secret) markdown += `**Secret:** ${npc.secret}\n\n`;
-                    }
-                });
-            }
-            
-            if (plan.locations && Array.isArray(plan.locations)) {
-                markdown += '## Locations\n\n';
-                plan.locations.forEach(location => {
-                    if (location.name) {
-                        markdown += `### ${location.name}\n\n`;
-                        if (location.specific_location) markdown += `**Location:** ${location.specific_location}\n\n`;
-                        if (location.sensory_cues && Array.isArray(location.sensory_cues)) {
-                            markdown += '**Atmosphere:**\n';
-                            location.sensory_cues.forEach(cue => {
-                                markdown += `- ${cue}\n`;
-                            });
-                            markdown += '\n';
-                        }
-                    }
-                });
-            }
-        }
-        
-        return markdown;
+
+        // Use unified renderer for complete data
+        const completeData = '# Complete Session Data\n\n' + this.renderJSONToMarkdown(session, {
+            maxDepth: 4,
+            arrayItemLimit: 10,
+            headingBaseLevel: 2
+        });
+
+        return highlights + '\n' + completeData;
     }
 
     showSessionModal(session) {
@@ -886,11 +861,11 @@ class DnDApp {
     }
 
     formatSessionContent(session) {
-        // Convert session data to markdown
+        // Convert session data to markdown using unified renderer
         const markdown = this.convertSessionToMarkdown(session);
         
-        // Convert markdown to HTML using marked.js
-        const htmlContent = marked.parse(markdown);
+        // Convert markdown to HTML using marked.js with sanitization
+        const htmlContent = this.safeMarkdownToHTML(markdown);
         
         // Make sections collapsible (except h1)
         const collapsibleContent = this.makeCollapsible(htmlContent);
@@ -1163,65 +1138,37 @@ class DnDApp {
             return '# Campaign Outline\n\nNo structured outline available.';
         }
 
-        let markdown = '';
+        // Create highlights section for key campaign themes
+        let highlights = '';
         
-        // Handle core_themes as the main overview (visible by default)
+        // Handle core_themes as highlights (visible by default)
         if (outlineData.core_themes && Array.isArray(outlineData.core_themes)) {
-            markdown += '# Campaign Themes\n\n';
+            highlights += '# Campaign Themes\n\n';
             outlineData.core_themes.forEach(theme => {
                 if (theme.label && theme.description) {
-                    markdown += `**${theme.label}:** ${theme.description}\n\n`;
+                    highlights += `**${this.escapeMarkdown(theme.label)}:** ${this.escapeMarkdown(theme.description)}\n\n`;
                 }
             });
         }
         
-        // Handle initial_draft as story overview
+        // Story overview from initial_draft
         if (outlineData.initial_draft && Array.isArray(outlineData.initial_draft)) {
-            markdown += '## Story Overview\n\n';
+            highlights += '## Story Overview\n\n';
             outlineData.initial_draft.forEach((paragraph, index) => {
                 if (typeof paragraph === 'string') {
-                    markdown += `${paragraph}\n\n`;
+                    highlights += `${this.escapeMarkdown(paragraph)}\n\n`;
                 }
             });
         }
-        
-        // Handle other sections dynamically
-        Object.keys(outlineData).forEach(key => {
-            if (key === 'core_themes' || key === 'initial_draft' || key === 'lore_call_checklist') {
-                return; // Already handled or skip checklist
-            }
-            
-            const value = outlineData[key];
-            const heading = `## ${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
-            
-            markdown += `${heading}\n\n`;
-            
-            if (typeof value === 'object') {
-                if (Array.isArray(value)) {
-                    value.forEach((item, index) => {
-                        if (typeof item === 'object') {
-                            const itemTitle = item.name || item.title || item.label || `Item ${index + 1}`;
-                            markdown += `### ${itemTitle}\n\n`;
-                            Object.keys(item).forEach(subKey => {
-                                if (subKey !== 'name' && subKey !== 'title' && subKey !== 'label') {
-                                    markdown += `**${subKey.replace(/_/g, ' ')}:** ${item[subKey]}\n\n`;
-                                }
-                            });
-                        } else {
-                            markdown += `- ${item}\n`;
-                        }
-                    });
-                } else {
-                    Object.keys(value).forEach(subKey => {
-                        markdown += `**${subKey.replace(/_/g, ' ')}:** ${value[subKey]}\n\n`;
-                    });
-                }
-            } else {
-                markdown += `${value}\n\n`;
-            }
+
+        // Use unified renderer for complete data
+        const completeData = '# Complete Campaign Data\n\n' + this.renderJSONToMarkdown(outlineData, {
+            maxDepth: 4,
+            arrayItemLimit: 15,
+            headingBaseLevel: 2
         });
 
-        return markdown;
+        return highlights + '\n' + completeData;
     }
 
     makeCollapsible(htmlContent) {
@@ -1329,11 +1276,11 @@ class DnDApp {
             return `<div class="markdown-content">${marked.parse(outline || 'No outline available')}</div>`;
         }
         
-        // Convert JSON to markdown
+        // Convert JSON to markdown using unified renderer
         const markdown = this.convertJSONToMarkdown(outlineData);
         
-        // Convert markdown to HTML using marked.js
-        const htmlContent = marked.parse(markdown);
+        // Convert markdown to HTML using safe parser
+        const htmlContent = this.safeMarkdownToHTML(markdown);
         
         // Make sections collapsible (except h1)
         const collapsibleContent = this.makeCollapsible(htmlContent);
