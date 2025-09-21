@@ -708,6 +708,51 @@ body {
     background: var(--accent-color);
 }
 
+/* Campaign Info Grid */
+.campaign-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 12px 20px;
+    margin-bottom: 25px;
+}
+
+.campaign-info-item {
+    font-size: 0.9em;
+    color: var(--text-dark);
+}
+
+.campaign-info-item strong {
+    color: var(--primary-color);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Campaign Actions */
+.campaign-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+}
+
+/* Responsive design for campaign grid */
+@media (max-width: 768px) {
+    .campaign-info-grid {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto auto;
+        gap: 10px 15px;
+    }
+    
+    .campaign-actions {
+        flex-direction: column;
+    }
+}
+
 /* Utility Classes */
 .text-center { text-align: center; }
 .text-right { text-align: right; }

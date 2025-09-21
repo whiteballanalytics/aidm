@@ -261,15 +261,31 @@ class DnDApp {
                                sessionCount === 1 ? '1 session' : 
                                `${sessionCount} sessions`;
             
+            // Truncate description if too long
+            const description = campaign.user_description || campaign.description || 'No description';
+            const truncatedDescription = description.length > 80 ? description.substring(0, 80) + '...' : description;
+            
             return `
                 <div class="card">
                     <h3>${campaign.campaign_name || campaign.name || 'Untitled Campaign'}</h3>
-                    <p><strong>World:</strong> ${campaign.world_collection}</p>
-                    <p><strong>Description:</strong> ${campaign.user_description || campaign.description || 'No description'}</p>
-                    <p><strong>Created:</strong> ${new Date(createdDate).toLocaleDateString()}</p>
-                    ${lastPlayed}
-                    <p><strong>Sessions:</strong> ${sessionText}</p>
-                    <div class="item-actions">
+                    <div class="campaign-info-grid">
+                        <div class="campaign-info-item">
+                            <strong>World:</strong> ${campaign.world_collection}
+                        </div>
+                        <div class="campaign-info-item">
+                            <strong>Created:</strong> ${new Date(createdDate).toLocaleDateString()}
+                        </div>
+                        <div class="campaign-info-item">
+                            <strong>Description:</strong> ${truncatedDescription}
+                        </div>
+                        <div class="campaign-info-item">
+                            <strong>Last Played:</strong> ${campaign.last_played ? new Date(campaign.last_played).toLocaleDateString() : 'Never'}
+                        </div>
+                        <div class="campaign-info-item">
+                            <strong>Sessions:</strong> ${sessionText}
+                        </div>
+                    </div>
+                    <div class="campaign-actions">
                         <button class="btn" onclick="app.selectCampaign('${campaign.campaign_id}')">
                             Manage Sessions
                         </button>
