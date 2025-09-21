@@ -414,6 +414,91 @@ body {
     }
 }
 
+/* Collapsible Sections */
+.collapsible {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.collapsible-header {
+    background: var(--primary-color);
+    color: white;
+    padding: 12px 15px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+}
+
+.collapsible-header:hover {
+    background: var(--accent-color);
+}
+
+.collapsible-toggle {
+    font-size: 1.2em;
+    transition: transform 0.3s ease;
+}
+
+.collapsible.expanded .collapsible-toggle {
+    transform: rotate(90deg);
+}
+
+.collapsible-content {
+    padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+}
+
+.collapsible.expanded .collapsible-content {
+    padding: 15px;
+    max-height: 500px;
+}
+
+.collapsible-content pre {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 5px;
+    padding: 15px;
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    line-height: 1.4;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.campaign-modal {
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.campaign-modal h3 {
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    border-bottom: 3px solid var(--gold-color);
+    padding-bottom: 10px;
+}
+
+.campaign-metadata {
+    background: var(--parchment);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.campaign-metadata p {
+    margin: 8px 0;
+}
+
 /* Utility Classes */
 .text-center { text-align: center; }
 .text-right { text-align: right; }

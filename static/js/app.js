@@ -576,19 +576,68 @@ class DnDApp {
         }
     }
 
+    formatCampaignOutline(outline) {
+        if (!outline) return '<p>No outline available</p>';
+        
+        // Try to parse as JSON first, fallback to text
+        let outlineData;
+        try {
+            outlineData = typeof outline === 'string' ? JSON.parse(outline) : outline;
+        } catch (e) {
+            return `<pre>${outline}</pre>`;
+        }
+        
+        // If it's not an object, just display as text
+        if (typeof outlineData !== 'object') {
+            return `<pre>${outline}</pre>`;
+        }
+        
+        let formattedHtml = '';
+        
+        // Create collapsible sections for different parts
+        Object.keys(outlineData).forEach(key => {
+            const value = outlineData[key];
+            const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            
+            formattedHtml += `
+                <div class="collapsible" onclick="this.classList.toggle('expanded')">
+                    <div class="collapsible-header">
+                        <span>${displayKey}</span>
+                        <span class="collapsible-toggle">▶</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <pre>${typeof value === 'object' ? JSON.stringify(value, null, 2) : value}</pre>
+                    </div>
+                </div>
+            `;
+        });
+        
+        return formattedHtml || `<pre>${outline}</pre>`;
+    }
+
     showCampaignModal(campaign) {
+        const createdDate = campaign.creation_time || campaign.created_at;
+        const lastPlayed = campaign.last_played ? 
+            `<p><strong>Last Played:</strong> ${new Date(campaign.last_played).toLocaleDateString()}</p>` : 
+            '<p><strong>Last Played:</strong> Never</p>';
+        
         const modal = document.createElement('div');
         modal.innerHTML = `
-            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center;" onclick="this.remove()">
-                <div class="card" style="max-width: 600px; max-height: 80vh; overflow-y: auto; margin: 20px;" onclick="event.stopPropagation()">
-                    <h3>${campaign.campaign_name || 'Untitled Campaign'}</h3>
-                    <p><strong>World:</strong> ${campaign.world_collection}</p>
-                    <p><strong>Description:</strong> ${campaign.user_description || 'No description'}</p>
-                    <p><strong>Created:</strong> ${new Date(campaign.creation_time).toLocaleDateString()}</p>
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card campaign-modal" onclick="event.stopPropagation()">
+                    <h3>📜 Campaign Details (DM Only)</h3>
                     
-                    <h4>Campaign Outline:</h4>
-                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; white-space: pre-wrap; font-family: monospace; font-size: 0.9em;">
-                        ${campaign.outline || 'No outline available'}
+                    <div class="campaign-metadata">
+                        <h4>${campaign.campaign_name || campaign.name || 'Untitled Campaign'}</h4>
+                        <p><strong>World:</strong> ${campaign.world_collection}</p>
+                        <p><strong>Description:</strong> ${campaign.user_description || campaign.description || 'No description'}</p>
+                        <p><strong>Created:</strong> ${new Date(createdDate).toLocaleDateString()}</p>
+                        ${lastPlayed}
+                    </div>
+                    
+                    <h4>📖 AI-Generated Campaign Outline:</h4>
+                    <div class="campaign-outline">
+                        ${this.formatCampaignOutline(campaign.outline)}
                     </div>
                     
                     <div class="text-center mt-20">
