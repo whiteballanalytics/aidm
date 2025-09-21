@@ -59,6 +59,7 @@ class CampaignInfo(BaseModel):
     description: str
     world_collection: str
     created_at: str
+    last_played: Optional[str] = None
     outline: str = ""
 
 # Initialize OpenAI client
@@ -187,10 +188,14 @@ async def create_campaign(world_collection: str, user_description: str, campaign
     # Create campaign info
     campaign_info = {
         "campaign_id": campaign_id,
-        "name": campaign_name,
-        "description": user_description,
+        "campaign_name": campaign_name,  # Keep user's campaign name
+        "user_description": user_description,  # Keep user's original description
+        "name": campaign_name,  # For backward compatibility
+        "description": user_description,  # For backward compatibility
         "world_collection": world_collection,
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "creation_time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),  # For backward compatibility
+        "last_played": None,
         "outline": campaign_text
     }
     
@@ -236,6 +241,33 @@ async def list_campaigns() -> list[dict]:
     # Sort by creation date, newest first
     campaigns.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return campaigns
+
+async def update_last_played(campaign_id: str) -> bool:
+    """Update the last_played timestamp for a campaign."""
+    campaign_path = Path(CAMPAIGN_BASE_PATH) / f"{campaign_id}_outline.json"
+    
+    if not campaign_path.exists():
+        return False
+    
+    try:
+        # Load existing campaign data
+        campaign_data = json.loads(campaign_path.read_text(encoding="utf-8"))
+        
+        # Update last_played timestamp
+        campaign_data["last_played"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Save updated campaign data
+        campaign_path.write_text(json.dumps(campaign_data, indent=2), encoding="utf-8")
+        
+        jl_write({
+            "event": "campaign_last_played_updated",
+            "campaign_id": campaign_id,
+            "ts": time.time()
+        })
+        
+        return True
+    except (json.JSONDecodeError, IOError):
+        return False
 
 # Session management functions
 async def create_session(campaign_id: str) -> dict:

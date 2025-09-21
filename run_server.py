@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 # Import game engine functions
 from game_engine import (
-    create_campaign, load_campaign, list_campaigns,
+    create_campaign, load_campaign, list_campaigns, update_last_played,
     create_session, load_session, list_sessions, get_active_session, close_session,
     play_turn, get_available_worlds
 )
@@ -87,6 +87,17 @@ async def get_campaign(request):
         if not campaign:
             return JSONResponse({"error": "Campaign not found"}, status_code=404)
         return JSONResponse(campaign)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+async def update_campaign_last_played(request):
+    """PUT /api/campaigns/{campaign_id}/last_played - Update last played timestamp"""
+    campaign_id = request.path_params["campaign_id"]
+    try:
+        success = await update_last_played(campaign_id)
+        if not success:
+            return JSONResponse({"error": "Campaign not found"}, status_code=404)
+        return JSONResponse({"success": True, "message": "Last played timestamp updated"})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -310,6 +321,7 @@ routes = [
     Route('/api/campaigns', get_campaigns, methods=["GET"]),
     Route('/api/campaigns', create_campaign_endpoint, methods=["POST"]),
     Route('/api/campaigns/{campaign_id}', get_campaign, methods=["GET"]),
+    Route('/api/campaigns/{campaign_id}/last_played', update_campaign_last_played, methods=["PUT"]),
     
     # Session management
     Route('/api/campaigns/{campaign_id}/sessions', get_sessions, methods=["GET"]),
