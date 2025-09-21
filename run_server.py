@@ -29,6 +29,7 @@ from game_engine import (
     create_session, load_session, list_sessions, get_active_session, close_session,
     play_turn, get_available_worlds
 )
+from main import strip_json_block
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -176,6 +177,10 @@ async def play_turn_endpoint(request):
         user_id = data.get("user_id", "web_user")
         
         result = await play_turn(campaign_id, session_id, user_input, user_id)
+        
+        # Parse DM response to show only user-facing content (for REST fallback)
+        result["dm_response"] = strip_json_block(result["dm_response"])
+        
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -217,10 +222,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Process the turn
                     result = await play_turn(campaign_id, session_id, user_input, user_id)
                     
+                    # Parse DM response to show only user-facing content
+                    parsed_dm_response = strip_json_block(result["dm_response"])
+                    
                     # Send response
                     await manager.send_personal_message({
                         "type": "dm_response",
-                        "dm_response": result["dm_response"],
+                        "dm_response": parsed_dm_response,
                         "turn_number": result["turn_number"],
                         "scene_state": result["scene_state"],
                         "session_summary": result["session_summary"]

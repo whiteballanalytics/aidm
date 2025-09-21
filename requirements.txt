@@ -71,3 +71,4 @@ types-requests
 typing-inspection
 typing_extensions
 pygame-engine
+uvicorn[standard]

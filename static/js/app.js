@@ -647,8 +647,16 @@ class DnDApp {
         container.innerHTML = '';
         
         if (this.currentSession.chat_history && this.currentSession.chat_history.length > 0) {
-            this.currentSession.chat_history.forEach(message => {
-                this.addChatMessage(message.role, message.content);
+            // Convert backend turn records to chat messages
+            this.currentSession.chat_history.forEach(turn => {
+                // Add user message
+                if (turn.user_input) {
+                    this.addChatMessage('user', turn.user_input);
+                }
+                // Add DM response
+                if (turn.dm_response) {
+                    this.addChatMessage('dm', turn.dm_response);
+                }
             });
         } else {
             this.addChatMessage('system', 'Welcome to your D&D session! What would you like to do?');
