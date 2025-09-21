@@ -397,7 +397,6 @@ class DnDApp {
                         </div>
                     </div>
                     <div class="campaign-actions">
-                        <button class="btn btn-secondary" onclick="app.viewSession('${session.session_id}')">View Details (DM Only)</button>
                         ${session.status === 'open' ? 
                             `<button class="btn" onclick="app.playSession('${session.session_id}')">Continue</button>` :
                             `<button class="btn btn-secondary" onclick="app.playSession('${session.session_id}')">Recap</button>`
@@ -406,6 +405,7 @@ class DnDApp {
                             `<button class="btn btn-warning" onclick="app.closeSession('${session.session_id}')">Close Session</button>` :
                             ''
                         }
+                        <button class="btn btn-secondary" onclick="app.viewSession('${session.session_id}')">View Details (DM Only)</button>
                     </div>
                 </div>
             `;
