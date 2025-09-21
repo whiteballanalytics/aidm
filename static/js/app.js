@@ -201,24 +201,9 @@ class DnDApp {
             return;
         }
 
-        // World descriptions
-        const worldDescriptions = {
-            'Fiction': {
-                description: 'A versatile fantasy realm perfect for general adventures. This world provides a rich backdrop for classic D&D storytelling with diverse landscapes, ancient mysteries, and endless possibilities for adventure.',
-                features: ['Flexible fantasy setting', 'Classic D&D elements', 'Diverse environments', 'Rich lore foundation']
-            },
-            'SwordCoast': {
-                description: 'The legendary Sword Coast from the Forgotten Realms setting. Home to iconic cities like Waterdeep and Baldur\'s Gate, this world offers the authentic D&D experience with established lore and familiar locations.',
-                features: ['Classic Forgotten Realms', 'Iconic cities and locations', 'Rich established lore', 'Traditional D&D setting']
-            },
-            'MiddleEarth': {
-                description: 'Enter Tolkien\'s legendary world of Middle-earth. Journey through the Shire, Rivendell, and beyond in this richly detailed realm of hobbits, elves, dwarves, and epic quests.',
-                features: ['Tolkien-inspired adventures', 'Iconic fantasy races', 'Epic quest narratives', 'Detailed world lore']
-            }
-        };
-
-        const world = worldDescriptions[worldName];
-        if (world) {
+        // Get world data from loaded worlds (now includes descriptions and features from API)
+        const world = this.worlds[worldName];
+        if (world && world.description) {
             panel.innerHTML = `
                 <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
                     <h4 style="margin-top: 0; color: #2c3e50;">${worldName}</h4>
@@ -226,7 +211,7 @@ class DnDApp {
                     <div>
                         <strong>Key Features:</strong>
                         <ul style="margin: 10px 0 0 20px;">
-                            ${world.features.map(feature => `<li>${feature}</li>`).join('')}
+                            ${world.features ? world.features.map(feature => `<li>${feature}</li>`).join('') : '<li>No features available</li>'}
                         </ul>
                     </div>
                 </div>
