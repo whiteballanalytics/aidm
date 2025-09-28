@@ -40,8 +40,19 @@ So far the project only contains a back-end that can be run and uses must intera
 4. **Directory structure:**
    - `src/` — Main application code
    - `library/` — Support modules (vectorstores, prompts, logging)
-   - `config/` — Configuration files (e.g., memorystores.json) - these correspond to the names of vector stores on https://platform.openai.com/storage/vector_stores
+   - `config/` — Configuration files (e.g., memorystores.json) - these correspond to the names of vector stores on https://platform.openai.com/storage/vector_stores.
    - `mirror/` — Persistent storage for campaigns, sessions, and memory - these are currently locally stored to remember details about the campaigns you have personally intitiated / played
+
+5. **Set up config:**
+   - Create a `config/vectorstores.json` and pre-populate it with OpenAI vector stores that correspond to the lore of the world you want to work with.
+   - Here is an example:
+    {
+        "world": {
+            "Fiction": {
+            "vector_store_id": "vs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            }
+        }
+    }
 
 ---
 
