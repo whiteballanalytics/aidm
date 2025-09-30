@@ -201,24 +201,9 @@ class DnDApp {
             return;
         }
 
-        // World descriptions
-        const worldDescriptions = {
-            'Fiction': {
-                description: 'A versatile fantasy realm perfect for general adventures. This world provides a rich backdrop for classic D&D storytelling with diverse landscapes, ancient mysteries, and endless possibilities for adventure.',
-                features: ['Flexible fantasy setting', 'Classic D&D elements', 'Diverse environments', 'Rich lore foundation']
-            },
-            'SwordCoast': {
-                description: 'The legendary Sword Coast from the Forgotten Realms setting. Home to iconic cities like Waterdeep and Baldur\'s Gate, this world offers the authentic D&D experience with established lore and familiar locations.',
-                features: ['Classic Forgotten Realms', 'Iconic cities and locations', 'Rich established lore', 'Traditional D&D setting']
-            },
-            'MiddleEarth': {
-                description: 'Enter Tolkien\'s legendary world of Middle-earth. Journey through the Shire, Rivendell, and beyond in this richly detailed realm of hobbits, elves, dwarves, and epic quests.',
-                features: ['Tolkien-inspired adventures', 'Iconic fantasy races', 'Epic quest narratives', 'Detailed world lore']
-            }
-        };
-
-        const world = worldDescriptions[worldName];
-        if (world) {
+        // Get world data from loaded worlds (now includes descriptions and features from API)
+        const world = this.worlds[worldName];
+        if (world && world.description) {
             panel.innerHTML = `
                 <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
                     <h4 style="margin-top: 0; color: #2c3e50;">${worldName}</h4>
@@ -226,7 +211,7 @@ class DnDApp {
                     <div>
                         <strong>Key Features:</strong>
                         <ul style="margin: 10px 0 0 20px;">
-                            ${world.features.map(feature => `<li>${feature}</li>`).join('')}
+                            ${world.features ? world.features.map(feature => `<li>${feature}</li>`).join('') : '<li>No features available</li>'}
                         </ul>
                     </div>
                 </div>
@@ -261,15 +246,28 @@ class DnDApp {
                                sessionCount === 1 ? '1 session' : 
                                `${sessionCount} sessions`;
             
+            // Truncate text fields with specified character limits
+            const campaignName = campaign.campaign_name || campaign.name || 'Untitled Campaign';
+            const truncatedName = campaignName.length > 40 ? campaignName.substring(0, 40) + '...' : campaignName;
+            
+            const world = campaign.world_collection || '';
+            const truncatedWorld = world.length > 15 ? world.substring(0, 15) + '...' : world;
+            
+            const description = campaign.user_description || campaign.description || 'No description';
+            const truncatedDescription = description.length > 60 ? description.substring(0, 60) + '...' : description;
+            
             return `
                 <div class="card">
-                    <h3>${campaign.campaign_name || campaign.name || 'Untitled Campaign'}</h3>
-                    <p><strong>World:</strong> ${campaign.world_collection}</p>
-                    <p><strong>Description:</strong> ${campaign.user_description || campaign.description || 'No description'}</p>
-                    <p><strong>Created:</strong> ${new Date(createdDate).toLocaleDateString()}</p>
-                    ${lastPlayed}
-                    <p><strong>Sessions:</strong> ${sessionText}</p>
-                    <div class="item-actions">
+                    <h3>${truncatedName}</h3>
+                    <div class="campaign-info-compact">
+                        <div class="campaign-info-row">
+                            <b>WORLD:</b> ${truncatedWorld} &nbsp;&nbsp;&nbsp; <b>DESCRIPTION:</b> ${truncatedDescription}
+                        </div>
+                        <div class="campaign-info-row">
+                            <b>CREATED:</b> ${new Date(createdDate).toLocaleDateString()} &nbsp;&nbsp;&nbsp; <b>LAST PLAYED:</b> ${campaign.last_played ? new Date(campaign.last_played).toLocaleDateString() : 'Never'} &nbsp;&nbsp;&nbsp; <b>SESSIONS:</b> ${sessionText}
+                        </div>
+                    </div>
+                    <div class="campaign-actions">
                         <button class="btn" onclick="app.selectCampaign('${campaign.campaign_id}')">
                             Manage Sessions
                         </button>
@@ -282,70 +280,624 @@ class DnDApp {
         }).join('');
     }
 
+    // Helper methods for session numbering
+    sessionTimestamp(session) {
+        if (session.created_at) {
+            return new Date(session.created_at).getTime();
+        }
+        // Fallback: parse numeric portion of session_id
+        const match = session.session_id.match(/\d+/);
+        return match ? parseInt(match[0]) : 0;
+    }
+
+    computeSessionNumberMap() {
+        // Sort sessions by creation time (oldest first) and assign sequential numbers
+        const sortedSessions = [...this.sessions].sort((a, b) => 
+            this.sessionTimestamp(a) - this.sessionTimestamp(b)
+        );
+        
+        const numberMap = new Map();
+        sortedSessions.forEach((session, index) => {
+            numberMap.set(session.session_id, index + 1);
+        });
+        
+        return numberMap;
+    }
+
+    // ============ UNIFIED JSON-TO-MARKDOWN RENDERER ============
+    
+    /**
+     * Unified JSON-to-Markdown renderer that can handle any JSON structure
+     * @param {any} value - The value to render
+     * @param {Object} options - Rendering options
+     * @param {Array} path - Current path in the JSON structure
+     * @returns {string} Markdown string
+     */
+    renderJSONToMarkdown(value, options = {}, path = []) {
+        const defaults = {
+            maxDepth: 4,
+            arrayItemLimit: 20,
+            headingBaseLevel: 1,
+            showCounts: true,
+            linkify: true,
+            rawFenceLanguage: 'json'
+        };
+        const opts = { ...defaults, ...options };
+        const currentDepth = path.length;
+        
+        // If we've exceeded max depth, show raw JSON
+        if (currentDepth >= opts.maxDepth) {
+            return this.renderRawJSON(value, opts.rawFenceLanguage);
+        }
+        
+        if (value === null) return '*(null)*';
+        if (value === undefined) return '*(undefined)*';
+        
+        const type = Array.isArray(value) ? 'array' : typeof value;
+        
+        switch (type) {
+            case 'object':
+                return this.renderObjectToMarkdown(value, opts, path);
+            case 'array':
+                return this.renderArrayToMarkdown(value, opts, path);
+            case 'string':
+                return this.renderStringToMarkdown(value, opts);
+            case 'number':
+            case 'boolean':
+                return `${value}`;
+            default:
+                return this.escapeMarkdown(String(value));
+        }
+    }
+    
+    /**
+     * Render object to markdown
+     */
+    renderObjectToMarkdown(obj, opts, path) {
+        if (!obj || Object.keys(obj).length === 0) {
+            return '*(empty object)*\n\n';
+        }
+        
+        let markdown = '';
+        const currentDepth = path.length;
+        
+        Object.keys(obj).forEach(key => {
+            const value = obj[key];
+            const keyPath = [...path, key];
+            const headingLevel = Math.min(opts.headingBaseLevel + currentDepth, 6);
+            const heading = '#'.repeat(headingLevel);
+            const displayKey = this.formatKeyName(key);
+            
+            if (typeof value === 'object' && value !== null) {
+                // Complex value - create a section
+                markdown += `${heading} ${displayKey}\n\n`;
+                markdown += this.renderJSONToMarkdown(value, opts, keyPath);
+                markdown += '\n';
+            } else {
+                // Simple value - show as key-value pair
+                const renderedValue = this.renderJSONToMarkdown(value, opts, keyPath);
+                markdown += `**${displayKey}:** ${renderedValue}\n\n`;
+            }
+        });
+        
+        return markdown;
+    }
+    
+    /**
+     * Render array to markdown
+     */
+    renderArrayToMarkdown(arr, opts, path) {
+        if (!arr || arr.length === 0) {
+            return '*(empty array)*\n\n';
+        }
+        
+        let markdown = '';
+        const currentDepth = path.length;
+        const showCount = opts.showCounts && arr.length > opts.arrayItemLimit;
+        
+        // Check if array contains homogeneous objects
+        const isObjectArray = arr.every(item => typeof item === 'object' && item !== null && !Array.isArray(item));
+        const isSimpleArray = arr.every(item => typeof item !== 'object' || item === null);
+        
+        if (isSimpleArray) {
+            // Simple array - render as bullet list
+            const itemsToShow = arr.slice(0, opts.arrayItemLimit);
+            itemsToShow.forEach(item => {
+                const renderedItem = this.renderJSONToMarkdown(item, opts, [...path, 'item']);
+                markdown += `- ${renderedItem}\n`;
+            });
+            
+            if (showCount) {
+                const remaining = arr.length - opts.arrayItemLimit;
+                const expandId = 'expand_' + Math.random().toString(36).substr(2, 9);
+                markdown += `- **[Show ${remaining} more items...]** {data-expand="${expandId}" data-items="${this.encodeForAttribute(JSON.stringify(arr.slice(opts.arrayItemLimit)))}" data-opts="${this.encodeForAttribute(JSON.stringify(opts))}" data-path="${this.encodeForAttribute(JSON.stringify([...path, 'remaining']))}"}\n`;
+                markdown += `\n{expand-placeholder-${expandId}}\n`;
+            }
+            markdown += '\n';
+        } else if (isObjectArray) {
+            // Object array - render each with index
+            const itemsToShow = arr.slice(0, opts.arrayItemLimit);
+            itemsToShow.forEach((item, index) => {
+                const itemPath = [...path, index];
+                const headingLevel = Math.min(opts.headingBaseLevel + currentDepth + 1, 6);
+                const heading = '#'.repeat(headingLevel);
+                
+                // Try to find a good title for the item
+                const title = this.getItemTitle(item, index);
+                markdown += `${heading} ${title}\n\n`;
+                markdown += this.renderJSONToMarkdown(item, opts, itemPath);
+                markdown += '\n';
+            });
+            
+            if (showCount) {
+                const remaining = arr.length - opts.arrayItemLimit;
+                const expandId = 'expand_' + Math.random().toString(36).substr(2, 9);
+                markdown += `**[Show ${remaining} more items...]** {data-expand="${expandId}" data-items="${this.encodeForAttribute(JSON.stringify(arr.slice(opts.arrayItemLimit)))}" data-opts="${this.encodeForAttribute(JSON.stringify(opts))}" data-path="${this.encodeForAttribute(JSON.stringify([...path, 'remaining']))}"}\n\n`;
+                markdown += `{expand-placeholder-${expandId}}\n\n`;
+            }
+        } else {
+            // Mixed array - render each item separately
+            const itemsToShow = arr.slice(0, opts.arrayItemLimit);
+            itemsToShow.forEach((item, index) => {
+                const itemPath = [...path, index];
+                markdown += `**Item ${index + 1}:** ${this.renderJSONToMarkdown(item, opts, itemPath)}\n\n`;
+            });
+            
+            if (showCount) {
+                const remaining = arr.length - opts.arrayItemLimit;
+                const expandId = 'expand_' + Math.random().toString(36).substr(2, 9);
+                markdown += `**[Show ${remaining} more items...]** {data-expand="${expandId}" data-items="${this.encodeForAttribute(JSON.stringify(arr.slice(opts.arrayItemLimit)))}" data-opts="${this.encodeForAttribute(JSON.stringify(opts))}" data-path="${this.encodeForAttribute(JSON.stringify([...path, 'remaining']))}"}\n\n`;
+                markdown += `{expand-placeholder-${expandId}}\n\n`;
+            }
+        }
+        
+        return markdown;
+    }
+    
+    /**
+     * Render string with smart formatting
+     */
+    renderStringToMarkdown(str, opts) {
+        if (!str) return '*(empty)*';
+        
+        // Escape the string for markdown safety
+        let escaped = this.escapeMarkdown(str);
+        
+        // Optionally linkify URLs
+        if (opts.linkify) {
+            escaped = this.linkifyText(escaped);
+        }
+        
+        // Preserve line breaks
+        escaped = escaped.replace(/\n/g, '  \n');
+        
+        return escaped;
+    }
+    
+    /**
+     * Render raw JSON when depth limit exceeded
+     */
+    renderRawJSON(value, language = 'json') {
+        try {
+            const jsonString = JSON.stringify(value, null, 2);
+            return `\`\`\`${language}\n${jsonString}\n\`\`\`\n\n`;
+        } catch (e) {
+            return `\`\`\`\n${String(value)}\n\`\`\`\n\n`;
+        }
+    }
+    
+    /**
+     * Helper functions for the renderer
+     */
+    formatKeyName(key) {
+        return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+    
+    getItemTitle(item, index) {
+        if (typeof item !== 'object' || item === null) {
+            return `Item ${index + 1}`;
+        }
+        
+        // Try common title fields
+        const titleFields = ['name', 'title', 'label', 'id'];
+        for (const field of titleFields) {
+            if (item[field] && typeof item[field] === 'string') {
+                return this.escapeMarkdown(item[field]);
+            }
+        }
+        
+        return `Item ${index + 1}`;
+    }
+    
+    escapeMarkdown(text) {
+        if (typeof text !== 'string') return text;
+        return text
+            .replace(/\\/g, '\\\\')
+            .replace(/\*/g, '\\*')
+            .replace(/_/g, '\\_')
+            .replace(/\[/g, '\\[')
+            .replace(/\]/g, '\\]')
+            .replace(/\(/g, '\\(')
+            .replace(/\)/g, '\\)')
+            .replace(/~/g, '\\~')
+            .replace(/`/g, '\\`')
+            .replace(/>/g, '\\>')
+            .replace(/#/g, '\\#')
+            .replace(/\+/g, '\\+')
+            .replace(/-/g, '\\-')
+            .replace(/\./g, '\\.')
+            .replace(/!/g, '\\!')
+            .replace(/\|/g, '\\|');
+    }
+    
+    linkifyText(text) {
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.replace(urlRegex, '[$1]($1)');
+    }
+    
+    /**
+     * Extract structured data from various formats
+     */
+    extractStructuredData(input) {
+        if (!input) return null;
+        
+        // If already an object, return it
+        if (typeof input === 'object' && input !== null) {
+            return input;
+        }
+        
+        if (typeof input !== 'string') return null;
+        
+        // Try direct JSON parse
+        try {
+            return JSON.parse(input);
+        } catch (e) {
+            // Continue to other methods
+        }
+        
+        // Try RunResult format extraction
+        const runResultData = this.extractJSONFromRunResult(input);
+        if (runResultData) return runResultData;
+        
+        // Try to find JSON in fenced code blocks
+        const fencedMatch = input.match(/```(?:json)?\s*\n([\s\S]*?)\n```/i);
+        if (fencedMatch) {
+            try {
+                return JSON.parse(fencedMatch[1]);
+            } catch (e) {
+                // Continue
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Safe markdown to HTML conversion with proper sanitization
+     */
+    safeMarkdownToHTML(markdown) {
+        try {
+            // Configure marked with safe options
+            const renderer = new marked.Renderer();
+            
+            // Override dangerous features
+            renderer.html = () => '';  // Block raw HTML
+            renderer.link = (href, title, text) => {
+                // Sanitize links
+                if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                    return `<a href="${this.escapeHTML(href)}" title="${this.escapeHTML(title || '')}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+                }
+                return text;
+            };
+            
+            // Convert markdown to HTML with safe renderer
+            let htmlContent = marked.parse(markdown, { renderer });
+            
+            // Additional safety layer - allowlist approach
+            htmlContent = this.sanitizeHTML(htmlContent);
+            
+            return htmlContent;
+        } catch (e) {
+            console.warn('Failed to parse markdown:', e);
+            return `<pre>${this.escapeHTML(markdown)}</pre>`;
+        }
+    }
+    
+    /**
+     * Sanitize HTML using allowlist approach
+     */
+    sanitizeHTML(html) {
+        // Create a temporary DOM for parsing
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        
+        // Allowlisted tags and attributes
+        const allowedTags = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'code', 'pre', 'blockquote', 'details', 'summary', 'button', 'div'];
+        const allowedAttrs = ['href', 'title', 'class', 'id', 'onclick', 'target', 'rel'];
+        
+        this.sanitizeElement(temp, allowedTags, allowedAttrs);
+        return temp.innerHTML;
+    }
+    
+    /**
+     * Recursively sanitize DOM elements
+     */
+    sanitizeElement(element, allowedTags, allowedAttrs) {
+        const children = Array.from(element.children);
+        
+        children.forEach(child => {
+            if (!allowedTags.includes(child.tagName.toLowerCase())) {
+                // Replace with text content
+                const textNode = document.createTextNode(child.textContent);
+                child.parentNode.replaceChild(textNode, child);
+            } else {
+                // Clean attributes
+                const attrs = Array.from(child.attributes);
+                attrs.forEach(attr => {
+                    if (!allowedAttrs.includes(attr.name.toLowerCase())) {
+                        child.removeAttribute(attr.name);
+                    }
+                });
+                
+                // Recursively clean children
+                this.sanitizeElement(child, allowedTags, allowedAttrs);
+            }
+        });
+    }
+    
+    /**
+     * Encode data for safe attribute embedding
+     */
+    encodeForAttribute(data) {
+        return btoa(encodeURIComponent(data));
+    }
+    
+    /**
+     * Decode data from attribute
+     */
+    decodeFromAttribute(encoded) {
+        return decodeURIComponent(atob(encoded));
+    }
+    
+    /**
+     * Process show-more placeholders after safe HTML rendering
+     */
+    processShowMorePlaceholders(container) {
+        // Find all show-more triggers and placeholders
+        const triggers = container.querySelectorAll('strong');
+        
+        triggers.forEach(trigger => {
+            const text = trigger.textContent;
+            if (text.includes('[Show') && text.includes('more items...]')) {
+                // Extract data attributes from parent element text
+                const parentText = trigger.parentElement.textContent;
+                const match = parentText.match(/\{data-expand="([^"]+)" data-items="([^"]+)" data-opts="([^"]+)" data-path="([^"]+)"\}/);
+                if (match) {
+                    const [, expandId, encodedItems, encodedOpts, encodedPath] = match;
+                    
+                    // Create button element
+                    const button = document.createElement('button');
+                    button.className = 'show-more-btn';
+                    button.textContent = text.replace(/^\[|\]$/g, '');
+                    button.setAttribute('data-expand-id', expandId);
+                    button.setAttribute('data-items', encodedItems);
+                    button.setAttribute('data-opts', encodedOpts);
+                    button.setAttribute('data-path', encodedPath);
+                    
+                    // Create placeholder div
+                    const placeholder = document.createElement('div');
+                    placeholder.id = expandId;
+                    placeholder.className = 'hidden-content';
+                    
+                    // Replace the trigger text with button
+                    trigger.parentElement.replaceChild(button, trigger);
+                    
+                    // Find and replace placeholder text using TreeWalker
+                    const walker = document.createTreeWalker(
+                        container,
+                        NodeFilter.SHOW_TEXT,
+                        {
+                            acceptNode: function(node) {
+                                return node.textContent.includes(`{expand-placeholder-${expandId}}`) ? 
+                                    NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+                            }
+                        }
+                    );
+                    
+                    let node;
+                    while (node = walker.nextNode()) {
+                        if (node.textContent.includes(`{expand-placeholder-${expandId}}`)) {
+                            node.parentNode.replaceChild(placeholder, node);
+                            break;
+                        }
+                    }
+                    
+                    // Fallback: insert after button if placeholder not found
+                    if (!placeholder.parentNode) {
+                        button.parentNode.insertBefore(placeholder, button.nextSibling);
+                    }
+                }
+            }
+        });
+        
+        // Add event delegation for show-more buttons
+        container.addEventListener('click', (e) => {
+            if (e.target.classList.contains('show-more-btn')) {
+                this.handleShowMoreClick(e.target);
+            }
+        });
+    }
+    
+    /**
+     * Handle show-more button clicks
+     */
+    handleShowMoreClick(button) {
+        const expandId = button.getAttribute('data-expand-id');
+        const encodedItems = button.getAttribute('data-items');
+        const encodedOpts = button.getAttribute('data-opts');
+        const encodedPath = button.getAttribute('data-path');
+        
+        try {
+            const items = JSON.parse(this.decodeFromAttribute(encodedItems));
+            const options = JSON.parse(this.decodeFromAttribute(encodedOpts));
+            const path = JSON.parse(this.decodeFromAttribute(encodedPath));
+            
+            this.expandArraySection(expandId, items, options, path);
+            button.style.display = 'none';
+        } catch (e) {
+            console.error('Failed to expand section:', e);
+            button.textContent = 'Error loading items';
+            button.disabled = true;
+        }
+    }
+    
+    /**
+     * Expand array section for "show more" functionality (updated)
+     */
+    expandArraySection(expandId, remainingItems, opts, path) {
+        const container = document.getElementById(expandId);
+        if (!container) return;
+        
+        try {
+            let markdown = '';
+            remainingItems.forEach((item, index) => {
+                const actualIndex = opts.arrayItemLimit + index;
+                if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+                    const title = this.getItemTitle(item, actualIndex);
+                    markdown += `### ${title}\n\n`;
+                    markdown += this.renderJSONToMarkdown(item, opts, [...path, actualIndex]);
+                } else {
+                    markdown += `- ${this.renderJSONToMarkdown(item, opts, [...path, actualIndex])}\n`;
+                }
+            });
+            
+            const htmlContent = this.safeMarkdownToHTML(markdown);
+            container.innerHTML = htmlContent;
+            container.style.display = 'block';
+        } catch (e) {
+            console.error('Failed to expand array section:', e);
+            container.innerHTML = '<p><em>Error loading additional items</em></p>';
+        }
+    }
+    
+    /**
+     * Escape HTML to prevent XSS
+     */
+    escapeHTML(text) {
+        if (typeof text !== 'string') return text;
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     renderSessions() {
         const container = document.getElementById('sessions-list');
+        const buttonContainer = document.getElementById('session-button-container');
         const campaignInfo = document.getElementById('current-campaign-info');
         
         if (!container || !this.currentCampaign) return;
         
         // Update campaign info
         if (campaignInfo) {
+            // Character limits matching Campaign Builder format (manual truncation like Campaign Builder)
+            const campaignName = this.currentCampaign.campaign_name || 'Untitled Campaign';
+            const worldName = this.currentCampaign.world_collection || 'Unknown';
+            const description = this.currentCampaign.user_description || 'No description';
+            
+            const truncatedName = campaignName.length > 40 ? campaignName.slice(0, 40) + '...' : campaignName;
+            const truncatedWorld = worldName.length > 15 ? worldName.slice(0, 15) + '...' : worldName;
+            const truncatedDescription = description.length > 60 ? description.slice(0, 60) + '...' : description;
+            
+            // Get session count for this campaign
+            const sessionCount = this.sessions.length || 0;
+            const sessionText = sessionCount === 0 ? 'No sessions yet' : 
+                               sessionCount === 1 ? '1 session' : 
+                               `${sessionCount} sessions`;
+            
+            // Format dates
+            const createdDate = this.currentCampaign.creation_time || this.currentCampaign.created_at;
+            const lastPlayed = this.currentCampaign.last_played ? 
+                new Date(this.currentCampaign.last_played).toLocaleDateString() : 'Never';
+            
             campaignInfo.innerHTML = `
-                <h3>${this.currentCampaign.campaign_name || 'Untitled Campaign'}</h3>
-                <p><strong>World:</strong> ${this.currentCampaign.world_collection}</p>
-                <p><strong>Description:</strong> ${this.currentCampaign.user_description || 'No description'}</p>
+                <h3>${truncatedName}</h3>
+                <div class="campaign-info-compact">
+                    <div class="campaign-info-row">
+                        <b>WORLD:</b> ${truncatedWorld} &nbsp;&nbsp;&nbsp; <b>DESCRIPTION:</b> ${truncatedDescription}
+                    </div>
+                    <div class="campaign-info-row">
+                        <b>CREATED:</b> ${new Date(createdDate).toLocaleDateString()} &nbsp;&nbsp;&nbsp; <b>LAST PLAYED:</b> ${lastPlayed} &nbsp;&nbsp;&nbsp; <b>SESSIONS:</b> ${sessionText}
+                    </div>
+                </div>
             `;
+        }
+
+        // Handle button rendering in the separate container above "Game Sessions" header
+        if (buttonContainer) {
+            if (this.sessions.length === 0) {
+                buttonContainer.innerHTML = `<button class="btn" onclick="app.createSession()">Create First Session</button>`;
+            } else {
+                // Check if there's an active (open) session
+                const hasActiveSession = this.sessions.some(session => session.status === 'open');
+                buttonContainer.innerHTML = !hasActiveSession ? 
+                    `<button class="btn" onclick="app.createSession()">Create New Session</button>` : '';
+            }
         }
 
         if (this.sessions.length === 0) {
             container.innerHTML = `
                 <div class="text-center mt-20">
-                    <button class="btn" onclick="app.createSession()">Create First Session</button>
-                    <p class="mt-20">No sessions created yet for this campaign.</p>
+                    <p>No sessions created yet for this campaign.</p>
                 </div>
             `;
             return;
         }
 
-        // Check if there's an active (open) session
-        const hasActiveSession = this.sessions.some(session => session.status === 'open');
+        // Compute session numbering map based on creation order
+        const sessionNumberMap = this.computeSessionNumberMap();
 
-        const sessionsHTML = this.sessions.map(session => {
+        const sessionsHTML = this.sessions.map((session) => {
             const statusClass = session.status === 'open' ? 'status-active' : 'status-complete';
             const statusText = session.status === 'open' ? 'Active' : 'Complete';
             
+            // Session numbering: sequential based on creation order (oldest = 1, newest = highest)
+            const sessionNumber = sessionNumberMap.get(session.session_id);
+            
+            // Format dates and message count
+            const createdDate = session.created_at ? new Date(session.created_at).toLocaleDateString() : 'Unknown';
+            const lastPlayed = session.last_activity ? new Date(session.last_activity).toLocaleDateString() : 'Never';
+            const messageCount = session.turn_count || 0;
+            const messageText = messageCount === 0 ? 'No messages yet' : 
+                               messageCount === 1 ? '1 message' : 
+                               `${messageCount} messages`;
+            
             return `
                 <div class="card">
-                    <div class="flex" style="justify-content: space-between; align-items: center;">
-                        <div>
-                            <h4>Session ${session.turn_number || 0}</h4>
-                            <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${statusText}</span></p>
-                            <p><strong>Started:</strong> ${new Date(session.creation_time).toLocaleDateString()}</p>
+                    <h3>Session ${sessionNumber}</h3>
+                    <div class="campaign-info-compact">
+                        <div class="campaign-info-row">
+                            <b>STATUS:</b> <span class="status-badge ${statusClass}">${statusText}</span> &nbsp;&nbsp;&nbsp; <b>MESSAGES:</b> ${messageText}
                         </div>
-                        <div class="item-actions">
-                            <button class="btn btn-secondary" onclick="app.viewSession('${session.session_id}')">View Details</button>
-                            ${session.status === 'open' ? 
-                                `<button class="btn" onclick="app.playSession('${session.session_id}')">Continue</button>` :
-                                `<button class="btn btn-secondary" onclick="app.playSession('${session.session_id}')">View</button>`
-                            }
-                            ${session.status === 'open' ? 
-                                `<button class="btn btn-danger" onclick="app.closeSession('${session.session_id}')">Close</button>` :
-                                ''
-                            }
+                        <div class="campaign-info-row">
+                            <b>CREATED:</b> ${createdDate} &nbsp;&nbsp;&nbsp; <b>LAST PLAYED:</b> ${lastPlayed}
                         </div>
+                    </div>
+                    <div class="campaign-actions">
+                        ${session.status === 'open' ? 
+                            `<button class="btn" onclick="app.playSession('${session.session_id}')">Continue</button>` :
+                            `<button class="btn btn-secondary" onclick="app.playSession('${session.session_id}')">Recap</button>`
+                        }
+                        ${session.status === 'open' ? 
+                            `<button class="btn btn-warning" onclick="app.closeSession('${session.session_id}')">Close Session</button>` :
+                            ''
+                        }
+                        <button class="btn btn-secondary" onclick="app.viewSession('${session.session_id}')">View Details (DM Only)</button>
                     </div>
                 </div>
             `;
         }).join('');
         
-        // Show create button at TOP only if no active session exists
-        const createButtonHTML = !hasActiveSession ? `
-            <div class="text-center mb-20">
-                <button class="btn" onclick="app.createSession()">Create New Session</button>
-            </div>
-        ` : '';
-        
-        container.innerHTML = createButtonHTML + sessionsHTML;
+        container.innerHTML = sessionsHTML;
     }
 
     // Campaign Management
@@ -453,80 +1005,24 @@ class DnDApp {
             return '# Session Details\n\nNo session data available.';
         }
 
-        let markdown = '';
+        // Create a highlights section for key information
+        let highlights = '# Session Highlights\n\n';
+        highlights += `**Turn Count:** ${session.turn_count || 0}\n\n`;
+        highlights += `**Status:** ${session.status || 'Unknown'}\n\n`;
+        highlights += `**Last Activity:** ${session.last_activity ? new Date(session.last_activity).toLocaleString() : 'Never'}\n\n`;
         
-        // Session Summary
-        markdown += '# Session Summary\n\n';
         if (session.summary) {
-            markdown += `${session.summary}\n\n`;
+            highlights += `**Summary:** ${this.escapeMarkdown(session.summary)}\n\n`;
         }
-        
-        // Session Info
-        markdown += `**Turn Count:** ${session.turn_count || 0}\n\n`;
-        markdown += `**Status:** ${session.status || 'Unknown'}\n\n`;
-        markdown += `**Last Activity:** ${session.last_activity ? new Date(session.last_activity).toLocaleString() : 'Never'}\n\n`;
-        
-        // Session Plan
-        if (session.session_plan) {
-            const plan = session.session_plan;
-            
-            if (plan.narrative_overview) {
-                markdown += '## Story Overview\n\n';
-                markdown += `${plan.narrative_overview}\n\n`;
-            }
-            
-            if (plan.objective) {
-                markdown += '## Objective\n\n';
-                markdown += `${plan.objective}\n\n`;
-            }
-            
-            if (plan.acts && Array.isArray(plan.acts)) {
-                markdown += '## Story Acts\n\n';
-                plan.acts.forEach(act => {
-                    if (act.name) {
-                        markdown += `### ${act.name}\n\n`;
-                    }
-                    if (act.beats && Array.isArray(act.beats)) {
-                        act.beats.forEach(beat => {
-                            markdown += `- ${beat}\n`;
-                        });
-                        markdown += '\n';
-                    }
-                });
-            }
-            
-            if (plan.npcs && Array.isArray(plan.npcs)) {
-                markdown += '## Key NPCs\n\n';
-                plan.npcs.forEach(npc => {
-                    if (npc.name) {
-                        markdown += `### ${npc.name}\n\n`;
-                        if (npc.public_face) markdown += `**Role:** ${npc.public_face}\n\n`;
-                        if (npc.true_goal) markdown += `**Goal:** ${npc.true_goal}\n\n`;
-                        if (npc.offers) markdown += `**Offers:** ${npc.offers}\n\n`;
-                        if (npc.secret) markdown += `**Secret:** ${npc.secret}\n\n`;
-                    }
-                });
-            }
-            
-            if (plan.locations && Array.isArray(plan.locations)) {
-                markdown += '## Locations\n\n';
-                plan.locations.forEach(location => {
-                    if (location.name) {
-                        markdown += `### ${location.name}\n\n`;
-                        if (location.specific_location) markdown += `**Location:** ${location.specific_location}\n\n`;
-                        if (location.sensory_cues && Array.isArray(location.sensory_cues)) {
-                            markdown += '**Atmosphere:**\n';
-                            location.sensory_cues.forEach(cue => {
-                                markdown += `- ${cue}\n`;
-                            });
-                            markdown += '\n';
-                        }
-                    }
-                });
-            }
-        }
-        
-        return markdown;
+
+        // Use unified renderer for complete data
+        const completeData = '# Complete Session Data\n\n' + this.renderJSONToMarkdown(session, {
+            maxDepth: 4,
+            arrayItemLimit: 10,
+            headingBaseLevel: 2
+        });
+
+        return highlights + '\n' + completeData;
     }
 
     showSessionModal(session) {
@@ -537,7 +1033,7 @@ class DnDApp {
                     <h3>📜 Session Details (DM Only)</h3>
                     
                     <div class="campaign-metadata">
-                        <h4>Session ${session.turn_count || 0}</h4>
+                        <h4>Session ${this.computeSessionNumberMap().get(session.session_id) || 0}</h4>
                         <p><strong>Campaign:</strong> ${this.currentCampaign.campaign_name || 'Untitled Campaign'}</p>
                         <p><strong>Created:</strong> ${new Date(session.created_at).toLocaleDateString()}</p>
                         <p><strong>Status:</strong> ${session.status || 'Unknown'}</p>
@@ -558,16 +1054,24 @@ class DnDApp {
     }
 
     formatSessionContent(session) {
-        // Convert session data to markdown
+        // Convert session data to markdown using unified renderer
         const markdown = this.convertSessionToMarkdown(session);
         
-        // Convert markdown to HTML using marked.js
-        const htmlContent = marked.parse(markdown);
+        // Convert markdown to HTML using safe parser
+        const htmlContent = this.safeMarkdownToHTML(markdown);
         
         // Make sections collapsible (except h1)
         const collapsibleContent = this.makeCollapsible(htmlContent);
         
-        return `<div class="markdown-content">${collapsibleContent}</div>`;
+        // Create container and process show-more placeholders
+        const container = document.createElement('div');
+        container.className = 'markdown-content';
+        container.innerHTML = collapsibleContent;
+        
+        // Process placeholders for interactive functionality
+        this.processShowMorePlaceholders(container);
+        
+        return container.outerHTML;
     }
 
     showThemedConfirm(message, onConfirm, onCancel = null) {
@@ -835,65 +1339,37 @@ class DnDApp {
             return '# Campaign Outline\n\nNo structured outline available.';
         }
 
-        let markdown = '';
+        // Create highlights section for key campaign themes
+        let highlights = '';
         
-        // Handle core_themes as the main overview (visible by default)
+        // Handle core_themes as highlights (visible by default)
         if (outlineData.core_themes && Array.isArray(outlineData.core_themes)) {
-            markdown += '# Campaign Themes\n\n';
+            highlights += '# Campaign Themes\n\n';
             outlineData.core_themes.forEach(theme => {
                 if (theme.label && theme.description) {
-                    markdown += `**${theme.label}:** ${theme.description}\n\n`;
+                    highlights += `**${this.escapeMarkdown(theme.label)}:** ${this.escapeMarkdown(theme.description)}\n\n`;
                 }
             });
         }
         
-        // Handle initial_draft as story overview
+        // Story overview from initial_draft
         if (outlineData.initial_draft && Array.isArray(outlineData.initial_draft)) {
-            markdown += '## Story Overview\n\n';
+            highlights += '## Story Overview\n\n';
             outlineData.initial_draft.forEach((paragraph, index) => {
                 if (typeof paragraph === 'string') {
-                    markdown += `${paragraph}\n\n`;
+                    highlights += `${this.escapeMarkdown(paragraph)}\n\n`;
                 }
             });
         }
-        
-        // Handle other sections dynamically
-        Object.keys(outlineData).forEach(key => {
-            if (key === 'core_themes' || key === 'initial_draft' || key === 'lore_call_checklist') {
-                return; // Already handled or skip checklist
-            }
-            
-            const value = outlineData[key];
-            const heading = `## ${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
-            
-            markdown += `${heading}\n\n`;
-            
-            if (typeof value === 'object') {
-                if (Array.isArray(value)) {
-                    value.forEach((item, index) => {
-                        if (typeof item === 'object') {
-                            const itemTitle = item.name || item.title || item.label || `Item ${index + 1}`;
-                            markdown += `### ${itemTitle}\n\n`;
-                            Object.keys(item).forEach(subKey => {
-                                if (subKey !== 'name' && subKey !== 'title' && subKey !== 'label') {
-                                    markdown += `**${subKey.replace(/_/g, ' ')}:** ${item[subKey]}\n\n`;
-                                }
-                            });
-                        } else {
-                            markdown += `- ${item}\n`;
-                        }
-                    });
-                } else {
-                    Object.keys(value).forEach(subKey => {
-                        markdown += `**${subKey.replace(/_/g, ' ')}:** ${value[subKey]}\n\n`;
-                    });
-                }
-            } else {
-                markdown += `${value}\n\n`;
-            }
+
+        // Use unified renderer for complete data
+        const completeData = '# Complete Campaign Data\n\n' + this.renderJSONToMarkdown(outlineData, {
+            maxDepth: 4,
+            arrayItemLimit: 15,
+            headingBaseLevel: 2
         });
 
-        return markdown;
+        return highlights + '\n' + completeData;
     }
 
     makeCollapsible(htmlContent) {
@@ -1001,16 +1477,24 @@ class DnDApp {
             return `<div class="markdown-content">${marked.parse(outline || 'No outline available')}</div>`;
         }
         
-        // Convert JSON to markdown
+        // Convert JSON to markdown using unified renderer
         const markdown = this.convertJSONToMarkdown(outlineData);
         
-        // Convert markdown to HTML using marked.js
-        const htmlContent = marked.parse(markdown);
+        // Convert markdown to HTML using safe parser
+        const htmlContent = this.safeMarkdownToHTML(markdown);
         
         // Make sections collapsible (except h1)
         const collapsibleContent = this.makeCollapsible(htmlContent);
         
-        return `<div class="markdown-content">${collapsibleContent}</div>`;
+        // Create container and process show-more placeholders
+        const container = document.createElement('div');
+        container.className = 'markdown-content';
+        container.innerHTML = collapsibleContent;
+        
+        // Process placeholders for interactive functionality
+        this.processShowMorePlaceholders(container);
+        
+        return container.outerHTML;
     }
 
     showCampaignModal(campaign) {

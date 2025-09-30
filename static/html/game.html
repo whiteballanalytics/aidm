@@ -33,7 +33,7 @@
             <!-- Campaign Builder Tab -->
             <div id="campaigns-tab" class="tab-content active">
                 <h2>Campaign Builder</h2>
-                <p>Create immersive campaigns with AI-generated storylines.</p>
+                <p>Guide the DM to generate immersive campaigns in fantasy universes you choose.</p>
 
                 <div class="card-grid">
                     <!-- Create Campaign Form -->
@@ -55,47 +55,44 @@
                             <div class="form-group">
                                 <label class="form-label" for="campaign-description">Campaign Description</label>
                                 <textarea id="campaign-description" name="description" class="form-textarea" 
-                                         placeholder="Describe your campaign theme, setting, or starting scenario..."></textarea>
+                                         placeholder="Provide guidance to the DM to help them construct a campaign that you will love..."></textarea>
                             </div>
                             
                             <button type="submit" class="btn">Create Campaign</button>
                         </form>
                     </div>
 
-                    <!-- Campaign Information -->
+                    <!-- World Selection Controls -->
                     <div class="card">
                         <h3>Available Worlds</h3>
+                        <form id="create-campaign-form">
+                            <div class="form-group">
+                                <label class="form-label" for="world-preview-select">World Preview</label>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <select id="world-preview-select" class="form-select" style="flex: 1;">
+                                        <option value="">Select a world to preview...</option>
+                                    </select>
+                                    <button class="btn btn-secondary" disabled style="margin-left: 0;">
+                                        Add World
+                                    </button>
+                                </div>
+                            </div>
                         
-                        <!-- World Selection Controls -->
-                        <div class="flex" style="gap: 10px; margin-bottom: 20px; align-items: center;">
-                            <select id="world-preview-select" class="form-select" style="flex: 1;">
-                                <option value="">Select a world to preview...</option>
-                            </select>
-                            <button class="btn btn-secondary" disabled>
-                                Add World
-                            </button>
-                        </div>
-                        
-                        <!-- Dynamic World Description Panel -->
-                        <div id="world-description-panel" class="world-preview">
-                            <p style="color: #666; text-align: center; padding: 20px;">
-                                Select a world above to see its description
-                            </p>
-                        </div>
-                        
-                        <h4 style="margin-top: 20px;">How It Works</h4>
-                        <ol>
-                            <li>Choose a world setting for your adventure</li>
-                            <li>Provide a campaign description or theme</li>
-                            <li>AI generates a complete campaign outline</li>
-                            <li>Start creating game sessions</li>
-                        </ol>
+                            <!-- Dynamic World Description Panel -->
+                            <div id="world-description-panel" class="world-preview">
+                                <p style="color: #666; text-align: left; padding: 20px;">
+                                    Select a world above to see its description.
+                                </p>
+                            </div>
+                        </form>
                     </div>
                 </div>
 
                 <!-- Existing Campaigns -->
-                <div style="margin-top: 30px;">
-                    <h3>Your Campaigns</h3>
+                <h2>Your current campaigns</h2>
+                <p>Select a previously created campaign and continue from where you left off...</p>
+
+                <div class="card-grid">
                     <div id="campaigns-list">
                         <div class="text-center mt-20">
                             <div class="loading">
@@ -105,6 +102,7 @@
                         </div>
                     </div>
                 </div>
+
             </div>
 
             <!-- Session Manager Tab -->
@@ -112,12 +110,18 @@
                 <h2>Session Manager</h2>
                 <p>Manage game sessions for your selected campaign.</p>
 
-                <div id="current-campaign-info" class="card">
-                    <p>Select a campaign from the Campaign Builder to manage sessions.</p>
-                    <button class="btn btn-secondary" onclick="app.showTab('campaigns')">Back to Campaigns</button>
+                <div class="card-grid">
+                    <div id="current-campaign-info" class="card">
+                        <p>Select a campaign from the Campaign Builder to manage sessions.</p>
+                        <button class="btn btn-secondary" onclick="app.showTab('campaigns')">Back to Campaigns</button>
+                    </div>
                 </div>
 
                 <div style="margin-top: 20px;">
+                    <div id="session-button-container" style="text-align: center; margin-bottom: 20px;">
+                        <!-- Button will be rendered here by JavaScript -->
+                    </div>
+                    
                     <h3 style="margin-bottom: 20px;">Game Sessions</h3>
                     
                     <div id="sessions-list">
@@ -174,6 +178,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=20250921-2015"></script>
 </body>
 </html>

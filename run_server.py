@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from starlette.applications import Starlette
-from starlette.responses import HTMLResponse, JSONResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response, FileResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from starlette.staticfiles import StaticFiles
@@ -55,6 +55,7 @@ class ConnectionManager:
                 self.disconnect(session_key)
 
 manager = ConnectionManager()
+
 
 # API Endpoints
 
