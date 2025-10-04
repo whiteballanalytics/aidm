@@ -278,9 +278,29 @@ async def main():
 
     # Pull structured pieces (fallbacks keep it robust)
     session_plan  = new_session_json.get("session_plan", {})
+    
+    # ==================================================================================
+    # CHANGE (Oct 4, 2025): Extract initial scene with backwards compatibility
+    # ==================================================================================
+    # WHAT: Try session_plan.initial_scene_state_patch first, fallback to legacy
+    #       new_session_json.initial_scene_state
+    # WHY: Removed duplicate initial_scene_state from session root. New sessions only
+    #      have it in session_plan.initial_scene_state_patch, but legacy sessions may
+    #      still have it at the root level.
+    # HOW: Use 'or' operator to check new location first, then legacy location
+    # ==================================================================================
     initial_scene = session_plan.get("initial_scene_state_patch", {}) or new_session_json.get("initial_scene_state", {})
 
-    # Get the read-aloud text from the first beat's read_aloud_open
+    # ==================================================================================
+    # CHANGE (Oct 4, 2025): Extract opening read-aloud from first beat
+    # ==================================================================================
+    # WHAT: Get read-aloud text from session_plan.beats[0].read_aloud_open instead
+    #       of a top-level opening_read_aloud field
+    # WHY: Removed duplicate opening_read_aloud from session root. The read-aloud text
+    #      is already stored in each beat's read_aloud_open field. The first beat's
+    #      opening text serves as the session opening narrative.
+    # HOW: Extract beats array, get first beat's read_aloud_open if beats exist
+    # ==================================================================================
     beats = session_plan.get("beats", [])
     read_aloud = beats[0].get("read_aloud_open", "") if beats else ""
     

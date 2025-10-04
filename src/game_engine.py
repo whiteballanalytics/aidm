@@ -85,15 +85,37 @@ def get_openai_client():
 
 # Initialize agents and tools
 def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCoast", campaign_outline: str = ""):
+    """
+    Initialize AI agents and tools for a D&D campaign.
+    
+    Args:
+        campaign_id: Unique identifier for the campaign
+        world_collection: Name of the world lore collection to use (default: "SwordCoast")
+        campaign_outline: The full campaign outline JSON as a string (added Oct 4, 2025)
+    
+    Returns:
+        Dictionary containing initialized agents (dm_agent, dm_new_session_agent, etc.)
+    """
     client = get_openai_client()
     
-    # System prompts
+    # System prompts - load from prompts/system/ directory
     dm_system_prompt = load_prompt("system", "dm_original.md")
     dm_new_session_prompt = load_prompt("system", "dm_new_session.md")
     dm_new_campaign_prompt = load_prompt("system", "dm_new_campaign.md")
     dm_post_session_prompt = load_prompt("system", "dm_post_session_analysis.md")
     
-    # Replace campaign outline placeholder in session planning prompt
+    # ==================================================================================
+    # CHANGE (Oct 4, 2025): Campaign outline placeholder substitution
+    # ==================================================================================
+    # WHAT: Replace {campaign-outline} placeholder in dm_new_session.md with actual
+    #       campaign outline text
+    # WHY: The dm_new_session_agent needs the full campaign outline to plan sessions
+    #      that align with the intended narrative arc. The prompt template has a 
+    #      {campaign-outline} placeholder that must be replaced with real data.
+    # HOW: Simple string replacement - if outline provided, substitute it; otherwise
+    #      use fallback message indicating no outline is available
+    # NOTE: This happens once when agents are initialized, not on every session request
+    # ==================================================================================
     if campaign_outline:
         dm_new_session_prompt = dm_new_session_prompt.replace("{campaign-outline}", campaign_outline)
     else:
@@ -423,7 +445,19 @@ Remember to complete the tool usage checklist before producing your JSON output.
             f"Session plan extraction/validation failed: {'; '.join(error_details)}"
         )
     
-    # Create session info with status
+    # ==================================================================================
+    # CHANGE (Oct 4, 2025): Cleaned up session structure - removed duplicate fields
+    # ==================================================================================
+    # WHAT: Removed opening_read_aloud and initial_scene_state from session root
+    # WHY: These fields were duplicating data already in the session_plan:
+    #      - opening_read_aloud duplicated session_plan.beats[0].read_aloud_open
+    #      - initial_scene_state duplicated session_plan.initial_scene_state_patch
+    #      Having the same data in two places created confusion and maintenance issues.
+    # HOW: Session now only stores session_plan (which contains all the data) and
+    #      runtime fields (chat_history, status, timestamps, etc.)
+    # BACKWARDS COMPATIBILITY: Old sessions with top-level fields still work via
+    #      fallback logic in play_turn() and main.py (see comments there)
+    # ==================================================================================
     session_info = {
         "session_id": session_id,
         "campaign_id": campaign_id,
@@ -432,8 +466,8 @@ Remember to complete the tool usage checklist before producing your JSON output.
         "last_activity": time.strftime("%Y-%m-%d %H:%M:%S"),
         "turn_count": 0,
         "summary": "Session just started",
-        "session_plan": session_plan,
-        "chat_history": []
+        "session_plan": session_plan,  # All session planning data (beats, NPCs, locations, etc.)
+        "chat_history": []  # Player/DM conversation history populated during gameplay
     }
     
     # Save session file
@@ -636,6 +670,17 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
     # Apply initial scene if this is the first turn
     if session["turn_count"] == 0:
         session_plan = session.get("session_plan", {})
+        # ==================================================================================
+        # CHANGE (Oct 4, 2025): Backwards compatibility for initial_scene_state
+        # ==================================================================================
+        # WHAT: Try new location first (session_plan.initial_scene_state_patch), 
+        #       fallback to legacy location (session.initial_scene_state)
+        # WHY: Old sessions created before the cleanup have initial_scene_state at the
+        #      session root. New sessions have it in session_plan.initial_scene_state_patch.
+        #      Using 'or' ensures both old and new sessions work correctly.
+        # HOW: Check session_plan first (new location), if empty/missing check session
+        #      root (legacy location). This preserves backwards compatibility.
+        # ==================================================================================
         initial_scene = session_plan.get("initial_scene_state_patch", {}) or session.get("initial_scene_state", {})
         scene_state = merge_scene_patch(scene_state, initial_scene)
     
