@@ -359,16 +359,34 @@ Remember to complete the tool usage checklist before producing your JSON output.
     session_plan = session_data if session_data else {}
     
     # Validate that essential session plan keys exist
-    if not session_plan or 'session_title' not in session_plan:
-        # Log warning but don't fail - allow system to continue with empty plan
+    required_keys = ['session_title', 'beats']
+    missing_keys = [key for key in required_keys if key not in session_plan]
+    
+    if not session_plan or missing_keys:
+        # Log the failure for debugging
         jl_write({
             "event": "session_plan_extraction_failed",
             "campaign_id": campaign_id,
             "session_id": session_id,
             "has_data": bool(session_data),
             "output_length": len(session_text),
+            "missing_keys": missing_keys,
             "ts": time.time()
         })
+        
+        # Raise descriptive exception with debugging info
+        error_details = []
+        if not session_plan:
+            error_details.append("no data extracted from agent output")
+        else:
+            error_details.append(f"missing required keys: {', '.join(missing_keys)}")
+        
+        error_details.append(f"extracted_data={'yes' if session_data else 'no'}")
+        error_details.append(f"output_length={len(session_text)}")
+        
+        raise Exception(
+            f"Session plan extraction/validation failed: {'; '.join(error_details)}"
+        )
     
     # Create session info with status
     session_info = {
