@@ -1083,8 +1083,8 @@ class DnDApp {
                     <p style="margin: 20px 0; font-size: 1.1em;">${message}</p>
                     
                     <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
-                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove(); ${onCancel ? 'arguments[0]()' : ''}">Cancel</button>
-                        <button class="btn btn-danger" onclick="this.closest('[style*=fixed]').remove(); arguments[0]()">Confirm</button>
+                        <button class="btn btn-secondary">Cancel</button>
+                        <button class="btn btn-danger">Confirm</button>
                     </div>
                 </div>
             </div>
