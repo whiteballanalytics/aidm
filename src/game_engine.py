@@ -74,8 +74,12 @@ def get_openai_client():
     client = OpenAI(api_key=agent_key)
     
     # Set up tracing
-    set_tracing_export_api_key(agent_key)
-    GLOBAL_TRACE_PROVIDER._multi_processor.force_flush()
+    try:
+        set_tracing_export_api_key(agent_key)
+        if GLOBAL_TRACE_PROVIDER and hasattr(GLOBAL_TRACE_PROVIDER, '_multi_processor'):
+            GLOBAL_TRACE_PROVIDER._multi_processor.force_flush()
+    except Exception:
+        pass  # Tracing setup is optional
     
     return client
 
@@ -170,7 +174,7 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     }
 
 # Campaign management functions
-async def create_campaign(world_collection: str, user_description: str, campaign_name: str = None) -> dict:
+async def create_campaign(world_collection: str, user_description: str, campaign_name: Optional[str] = None) -> dict:
     """Create a new campaign with AI-generated content."""
     campaign_id = f"camp_{int(time.time())}"
     
@@ -460,8 +464,7 @@ async def generate_post_session_analysis(campaign_id: str, session: dict) -> str
 Please provide a structured post-session analysis following the format specified in your instructions."""
         
         # Run analysis agent
-        runner = Runner(agent=post_session_agent)
-        result = await runner.run(analysis_request)
+        result = await Runner.run(post_session_agent, analysis_request)
         
         # Extract analysis from result
         analysis = result.final_output if hasattr(result, 'final_output') else str(result)
