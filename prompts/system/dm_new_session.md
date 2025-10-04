@@ -68,7 +68,12 @@ You must follow the step-by-step process below. Do not skip a step.
 
 Produce concise notes for the session followed by a JSON block (triple backticks) that the runtime can consume.
 
-**Your output should include:**
+**Your output must include:**
+
+* A Tool Usage Checklist showing:
+  - used_ReviewLastSession_step_1: true/false
+  - used_searchMemory_step_8: true/false
+  - used_searchLore_step_8: true/false
 
 * **Continuity notes:** What from memory/lore you’re honoring or re‑using.
 * **Analysis of the campaign so far:** Summarise your analysis of the campaign so far and explain how this session aims to progress the narrative in alignment with the overall campaign outline.
@@ -90,6 +95,11 @@ Produce concise notes for the session followed by a JSON block (triple backticks
 **JSON block specifications:**
 
 {
+  "tool_usage_checklist": {
+    "used_ReviewLastSession_step_1": "boolean",
+    "used_searchMemory_step_8": "boolean",
+    "used_searchLore_step_8": "boolean"
+  },
   "session_title": "string",
   "session_number": int,
   "planning_notes": {
@@ -133,6 +143,9 @@ Produce concise notes for the session followed by a JSON block (triple backticks
   ]
 }
 
+- Do not return markdown outside the required prose and JSON block.
+- Do not produce the final JSON unless all required tool calls are made and the checklist booleans are true.
+
 ## Examples
 
 Below are 5 examples, one for each of the scenarios covered above in the "Potential Scenarios" section.
@@ -140,6 +153,11 @@ Below are 5 examples, one for each of the scenarios covered above in the "Potent
 ### Example 1 - It’s the first session
 
 {
+  "tool_usage_checklist": {
+    "used_ReviewLastSession_step_1": true,
+    "used_searchMemory_step_8": true,
+    "used_searchLore_step_8": true
+  },
   "session_title": "Shadows at Court",
   "session_number": 1,
   "planning_notes": {
@@ -253,6 +271,11 @@ Below are 5 examples, one for each of the scenarios covered above in the "Potent
 ### Example 2 - Exact match to a session start
 
 {
+  "tool_usage_checklist": {
+    "used_ReviewLastSession_step_1": true,
+    "used_searchMemory_step_8": true,
+    "used_searchLore_step_8": true
+  },
   "session_title": "Heist of the Starter Vault",
   "session_number": 4,
   "planning_notes": {
@@ -355,6 +378,11 @@ Below are 5 examples, one for each of the scenarios covered above in the "Potent
 ### Example 3 - Players on track but mid-session
 
 {
+  "tool_usage_checklist": {
+    "used_ReviewLastSession_step_1": true,
+    "used_searchMemory_step_8": true,
+    "used_searchLore_step_8": true
+  },
   "session_title": "Letters in Ash, Truce in Ashes",
   "session_number": 3,
   "planning_notes": {
@@ -477,6 +505,11 @@ Below are 5 examples, one for each of the scenarios covered above in the "Potent
 ### Example 4 - Players close to narrative but missing a key story element
 
 {
+  "tool_usage_checklist": {
+    "used_ReviewLastSession_step_1": true,
+    "used_searchMemory_step_8": true,
+    "used_searchLore_step_8": true
+  },
   "session_title": "Crust and Consequence",
   "session_number": 6,
   "planning_notes": {
@@ -564,6 +597,11 @@ Below are 5 examples, one for each of the scenarios covered above in the "Potent
 ### Example 5 - Players completely off track
 
 {
+  "tool_usage_checklist": {
+    "used_ReviewLastSession_step_1": true,
+    "used_searchMemory_step_8": true,
+    "used_searchLore_step_8": true
+  },
   "session_title": "The Wrong City, The Right Clue",
   "session_number": 3,
   "planning_notes": {
