@@ -311,13 +311,21 @@ async def create_session(campaign_id: str) -> dict:
     world_collection = campaign.get("world_collection", "SwordCoast")
     campaign_outline = campaign.get("outline", "")
     
-    # Set up agents for this campaign with campaign outline
+    # ==================================================================================
+    # CHANGE (Oct 4, 2025): Campaign outline context injection
+    # ==================================================================================
+    # WHAT: Pass campaign_outline to setup_agents_for_campaign() so it can substitute
+    #       the {campaign-outline} placeholder in dm_new_session.md prompt template
+    # WHY: The AI agent needs the full campaign outline to plan sessions that align
+    #      with the overall narrative arc and intended story progression
+    # HOW: Modified setup_agents_for_campaign() signature to accept campaign_outline
+    #      parameter, which it uses to replace {campaign-outline} in the prompt
+    # ==================================================================================
     agents = setup_agents_for_campaign(campaign_id, world_collection, campaign_outline)
     dm_new_session_agent = agents["dm_new_session_agent"]
     
     # Build session planning prompt with campaign context
-    
-    # Create the session planning request with campaign JSON injected
+    # The campaign outline is embedded directly in the request to provide full context
     session_request = f"""# Campaign Overview
 
 The following is the complete campaign outline JSON that provides the overall narrative arc and planned sessions:
@@ -343,7 +351,16 @@ Remember to complete the tool usage checklist before producing your JSON output.
     except Exception as e:
         raise Exception(f"Error generating session: {e}")
     
-    # Get session content - use final_output which is the actual agent output
+    # ==================================================================================
+    # CHANGE (Oct 4, 2025): Fixed result extraction to use correct attribute
+    # ==================================================================================
+    # WHAT: Changed from using result.output_text to result.final_output
+    # WHY: The RunResult object from Runner.run() stores the agent's actual text output
+    #      in the final_output attribute, not output_text. Using the wrong attribute
+    #      caused empty session plans because we weren't getting the AI's response.
+    # HOW: Access result.final_output first, with fallbacks to legacy attributes for
+    #      backwards compatibility with different result object types
+    # ==================================================================================
     session_text = (
         getattr(result, "final_output", None)  # RunResult.final_output contains the agent's text output
         or getattr(result, "output_text", None)  # Fallback for other result types
@@ -351,14 +368,32 @@ Remember to complete the tool usage checklist before producing your JSON output.
         or str(result)
     )
     
-    # Extract JSON from session text
+    # Extract JSON from session text using the helper function
     session_data = extract_update_payload(session_text) or {}
     
-    # The extracted JSON IS the session plan (it contains keys like session_title, beats, npcs, etc.)
-    # Not nested under a "session_plan" key
+    # ==================================================================================
+    # CHANGE (Oct 4, 2025): Fixed session plan structure assignment
+    # ==================================================================================
+    # WHAT: The extracted JSON IS the session plan directly, not nested under a key
+    # WHY: Previously code looked for session_data["session_plan"] which didn't exist.
+    #      The AI agent returns JSON with top-level keys: session_title, beats, npcs, 
+    #      locations, etc. This IS the session plan, not a wrapper around it.
+    # HOW: Assign session_data directly to session_plan (it's already the plan)
+    # ==================================================================================
     session_plan = session_data if session_data else {}
     
-    # Validate that essential session plan keys exist
+    # ==================================================================================
+    # CHANGE (Oct 4, 2025): Added validation to prevent empty session plans
+    # ==================================================================================
+    # WHAT: Validate that the session plan has required keys (session_title, beats)
+    #       and raise an error if validation fails
+    # WHY: Previously, if the AI failed to produce valid JSON or was missing required
+    #      fields, the system would silently save an empty session plan to disk. This
+    #      made debugging difficult and created unusable sessions.
+    # HOW: Check for required keys, log diagnostic information, and raise a descriptive
+    #      exception with debugging context if validation fails. This prevents bad
+    #      sessions from being created and provides clear error messages.
+    # ==================================================================================
     required_keys = ['session_title', 'beats']
     missing_keys = [key for key in required_keys if key not in session_plan]
     
