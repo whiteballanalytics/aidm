@@ -84,7 +84,7 @@ def get_openai_client():
     return client
 
 # Initialize agents and tools
-def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCoast"):
+def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCoast", campaign_outline: str = ""):
     client = get_openai_client()
     
     # System prompts
@@ -92,6 +92,12 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     dm_new_session_prompt = load_prompt("system", "dm_new_session.md")
     dm_new_campaign_prompt = load_prompt("system", "dm_new_campaign.md")
     dm_post_session_prompt = load_prompt("system", "dm_post_session_analysis.md")
+    
+    # Replace campaign outline placeholder in session planning prompt
+    if campaign_outline:
+        dm_new_session_prompt = dm_new_session_prompt.replace("{campaign-outline}", campaign_outline)
+    else:
+        dm_new_session_prompt = dm_new_session_prompt.replace("{campaign-outline}", "(No campaign outline available)")
     
     # Vector store for world lore
     lore = LoreSearch.set_lore(collection=world_collection)
@@ -148,7 +154,7 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
         name="New Session Preparation Agent",
         instructions=dm_new_session_prompt,
         tools=[review_last_session, search_lore, search_memory],
-        model="gpt-5"
+        model="gpt-4o"
     )
     
     dm_new_campaign_agent = Agent(
@@ -303,13 +309,13 @@ async def create_session(campaign_id: str) -> dict:
     
     session_id = str(int(time.time()))
     world_collection = campaign.get("world_collection", "SwordCoast")
+    campaign_outline = campaign.get("outline", "")
     
-    # Set up agents for this campaign
-    agents = setup_agents_for_campaign(campaign_id, world_collection)
+    # Set up agents for this campaign with campaign outline
+    agents = setup_agents_for_campaign(campaign_id, world_collection, campaign_outline)
     dm_new_session_agent = agents["dm_new_session_agent"]
     
     # Build session planning prompt with campaign context
-    campaign_outline = campaign.get("outline", "")
     
     # Create the session planning request with campaign JSON injected
     session_request = f"""# Campaign Overview
@@ -337,15 +343,29 @@ Remember to complete the tool usage checklist before producing your JSON output.
     except Exception as e:
         raise Exception(f"Error generating session: {e}")
     
-    # Get session content
-    session_text = (
-        getattr(result, "output_text", None)
-        or getattr(result, "content", None)
-        or str(result)
-    )
+    # Get session content - prefer final_output for structured data
+    print(f"[DEBUG] result type: {type(result)}")
+    print(f"[DEBUG] result attributes: {dir(result)}")
+    print(f"[DEBUG] hasattr final_output: {hasattr(result, 'final_output')}")
+    if hasattr(result, 'final_output'):
+        print(f"[DEBUG] final_output type: {type(result.final_output)}")
+        print(f"[DEBUG] final_output value: {result.final_output}")
     
-    # Extract JSON from session text
-    session_data = extract_update_payload(session_text) or {}
+    if hasattr(result, 'final_output') and result.final_output:
+        # Agent returned structured output
+        session_data = result.final_output if isinstance(result.final_output, dict) else {}
+    else:
+        # Fallback to extracting JSON from text output
+        session_text = (
+            getattr(result, "output_text", None)
+            or getattr(result, "content", None)
+            or str(result)
+        )
+        print(f"[DEBUG] session_text length: {len(session_text)}")
+        print(f"[DEBUG] session_text sample: {session_text[:500]}")
+        session_data = extract_update_payload(session_text) or {}
+    
+    print(f"[DEBUG] session_data: {session_data}")
     
     # Create session info with status
     session_info = {
@@ -429,9 +449,10 @@ async def generate_post_session_analysis(campaign_id: str, session: dict) -> str
             return "Campaign not found - unable to generate analysis."
         
         world_collection = campaign.get("world_collection", "SwordCoast")
+        campaign_outline = campaign.get("outline", "")
         
-        # Set up agents
-        agents = setup_agents_for_campaign(campaign_id, world_collection)
+        # Set up agents with campaign outline
+        agents = setup_agents_for_campaign(campaign_id, world_collection, campaign_outline)
         post_session_agent = agents["dm_post_session_agent"]
         
         # Build analysis input
@@ -448,9 +469,6 @@ async def generate_post_session_analysis(campaign_id: str, session: dict) -> str
             transcript.append("")
         
         transcript_text = "\n".join(transcript)
-        
-        # Get campaign outline for context
-        campaign_outline = campaign.get("outline", "")
         
         # Build prompt for analysis with campaign context
         analysis_request = f"""# Campaign Overview
