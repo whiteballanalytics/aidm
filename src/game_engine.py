@@ -398,8 +398,6 @@ Remember to complete the tool usage checklist before producing your JSON output.
         "turn_count": 0,
         "summary": "Session just started",
         "session_plan": session_plan,
-        "opening_read_aloud": session_plan.get("opening_read_aloud", ""),
-        "initial_scene_state": session_plan.get("initial_scene_state_patch", {}),
         "chat_history": []
     }
     
@@ -602,7 +600,8 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
     
     # Apply initial scene if this is the first turn
     if session["turn_count"] == 0:
-        initial_scene = session.get("initial_scene_state", {})
+        session_plan = session.get("session_plan", {})
+        initial_scene = session_plan.get("initial_scene_state_patch", {}) or session.get("initial_scene_state", {})
         scene_state = merge_scene_patch(scene_state, initial_scene)
     
     # Get recent context from chat history

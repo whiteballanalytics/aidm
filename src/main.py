@@ -278,10 +278,11 @@ async def main():
 
     # Pull structured pieces (fallbacks keep it robust)
     session_plan  = new_session_json.get("session_plan", {})
-    initial_scene = new_session_json.get("initial_scene_state_patch", {})
+    initial_scene = session_plan.get("initial_scene_state_patch", {}) or new_session_json.get("initial_scene_state", {})
 
-    # Get the read-aloud text from the New Session JSON
-    read_aloud = new_session_json["session_plan"]["opening_read_aloud"]
+    # Get the read-aloud text from the first beat's read_aloud_open
+    beats = session_plan.get("beats", [])
+    read_aloud = beats[0].get("read_aloud_open", "") if beats else ""
     
     print("\n=== Dungeon Master — turn-based session ===")
     print("Type '/quit' to exit.\n")
