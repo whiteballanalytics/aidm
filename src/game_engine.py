@@ -303,9 +303,32 @@ async def create_session(campaign_id: str) -> dict:
     agents = setup_agents_for_campaign(campaign_id, world_collection)
     dm_new_session_agent = agents["dm_new_session_agent"]
     
+    # Build session planning prompt with campaign context
+    campaign_outline = campaign.get("outline", "")
+    
+    # Create the session planning request with campaign JSON injected
+    session_request = f"""# Campaign Overview
+
+The following is the complete campaign outline JSON that provides the overall narrative arc and planned sessions:
+
+{campaign_outline}
+
+---
+
+# Your Task
+
+Using the campaign outline above as your guide, please plan the next session for this campaign. Follow the process outlined in your instructions:
+
+1. Call ReviewLastSession to see what happened in the most recent session (if any)
+2. Determine which scenario you're in (first session, on track, mid-session, missing element, or off-track)
+3. Search memories and lore as needed
+4. Plan a session that continues the story and moves toward the campaign's intended narrative
+
+Remember to complete the tool usage checklist before producing your JSON output."""
+    
     # Generate session content
     try:
-        result = await Runner.run(dm_new_session_agent, "Create a new session", hooks=LocalRunLogger())
+        result = await Runner.run(dm_new_session_agent, session_request, hooks=LocalRunLogger())
     except Exception as e:
         raise Exception(f"Error generating session: {e}")
     
