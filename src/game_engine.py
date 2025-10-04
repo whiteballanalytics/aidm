@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 # Project-local imports
 from library.vectorstores import LoreSearch, MemorySearch, get_campaign_mem_store
+from library.session_tools import SessionReview
 from library.prompts import load_prompt
 from library.logginghooks import LocalRunLogger, jl_write
 
@@ -113,6 +114,11 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     )
     search_memory = mem_agent.as_tool(tool_name="searchMemory", tool_description="Search campaign memory.")
     
+    # Session review tool
+    session_review = SessionReview.from_campaign(campaign_id)
+    review_function = session_review.as_function()
+    review_last_session = function_tool(name_override="ReviewLastSession")(review_function)
+    
     # Dice roller
     def roll_impl(formula: str) -> dict:
         """Dice roller for game mechanics."""
@@ -136,7 +142,7 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     dm_new_session_agent = Agent(
         name="New Session Preparation Agent",
         instructions=dm_new_session_prompt,
-        tools=[search_lore, search_memory]
+        tools=[review_last_session, search_lore, search_memory]
     )
     
     dm_new_campaign_agent = Agent(
