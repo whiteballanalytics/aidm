@@ -343,15 +343,32 @@ Remember to complete the tool usage checklist before producing your JSON output.
     except Exception as e:
         raise Exception(f"Error generating session: {e}")
     
-    # Get session content
+    # Get session content - use final_output which is the actual agent output
     session_text = (
-        getattr(result, "output_text", None)
+        getattr(result, "final_output", None)  # RunResult.final_output contains the agent's text output
+        or getattr(result, "output_text", None)  # Fallback for other result types
         or getattr(result, "content", None)
         or str(result)
     )
     
     # Extract JSON from session text
     session_data = extract_update_payload(session_text) or {}
+    
+    # The extracted JSON IS the session plan (it contains keys like session_title, beats, npcs, etc.)
+    # Not nested under a "session_plan" key
+    session_plan = session_data if session_data else {}
+    
+    # Validate that essential session plan keys exist
+    if not session_plan or 'session_title' not in session_plan:
+        # Log warning but don't fail - allow system to continue with empty plan
+        jl_write({
+            "event": "session_plan_extraction_failed",
+            "campaign_id": campaign_id,
+            "session_id": session_id,
+            "has_data": bool(session_data),
+            "output_length": len(session_text),
+            "ts": time.time()
+        })
     
     # Create session info with status
     session_info = {
@@ -362,9 +379,9 @@ Remember to complete the tool usage checklist before producing your JSON output.
         "last_activity": time.strftime("%Y-%m-%d %H:%M:%S"),
         "turn_count": 0,
         "summary": "Session just started",
-        "session_plan": session_data.get("session_plan", {}),
-        "opening_read_aloud": session_data.get("session_plan", {}).get("opening_read_aloud", ""),
-        "initial_scene_state": session_data.get("initial_scene_state_patch", {}),
+        "session_plan": session_plan,
+        "opening_read_aloud": session_plan.get("opening_read_aloud", ""),
+        "initial_scene_state": session_plan.get("initial_scene_state_patch", {}),
         "chat_history": []
     }
     
