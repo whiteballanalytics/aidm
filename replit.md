@@ -5,7 +5,17 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 
 **Status**: ✅ Ready for use (requires OpenAI API key configuration)
 
-## Recent Changes (September 21, 2025)
+## Recent Changes
+
+### October 4, 2025 - Session Generation System
+- ✅ Fixed campaign outline template substitution in session planning
+  - Modified `setup_agents_for_campaign()` to accept `campaign_outline` parameter
+  - Implemented `{campaign-outline}` placeholder replacement in `dm_new_session.md` prompt
+  - Updated `create_session()` and `generate_post_session_analysis()` to pass campaign outline
+- ✅ Switched `dm_new_session_agent` back to GPT-4o (from GPT-5) for more reliable JSON output
+- ⚠️ Known issue: Session plan JSON extraction needs improvement (agent returns text without JSON blocks)
+
+### September 21, 2025 - Initial Setup
 - ✅ Imported GitHub repository and configured for Replit environment
 - ✅ Installed Python 3.11 and all required dependencies
 - ✅ Created missing configuration structure (config/, mirror/ directories)

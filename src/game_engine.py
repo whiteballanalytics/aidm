@@ -343,29 +343,15 @@ Remember to complete the tool usage checklist before producing your JSON output.
     except Exception as e:
         raise Exception(f"Error generating session: {e}")
     
-    # Get session content - prefer final_output for structured data
-    print(f"[DEBUG] result type: {type(result)}")
-    print(f"[DEBUG] result attributes: {dir(result)}")
-    print(f"[DEBUG] hasattr final_output: {hasattr(result, 'final_output')}")
-    if hasattr(result, 'final_output'):
-        print(f"[DEBUG] final_output type: {type(result.final_output)}")
-        print(f"[DEBUG] final_output value: {result.final_output}")
+    # Get session content
+    session_text = (
+        getattr(result, "output_text", None)
+        or getattr(result, "content", None)
+        or str(result)
+    )
     
-    if hasattr(result, 'final_output') and result.final_output:
-        # Agent returned structured output
-        session_data = result.final_output if isinstance(result.final_output, dict) else {}
-    else:
-        # Fallback to extracting JSON from text output
-        session_text = (
-            getattr(result, "output_text", None)
-            or getattr(result, "content", None)
-            or str(result)
-        )
-        print(f"[DEBUG] session_text length: {len(session_text)}")
-        print(f"[DEBUG] session_text sample: {session_text[:500]}")
-        session_data = extract_update_payload(session_text) or {}
-    
-    print(f"[DEBUG] session_data: {session_data}")
+    # Extract JSON from session text
+    session_data = extract_update_payload(session_text) or {}
     
     # Create session info with status
     session_info = {
