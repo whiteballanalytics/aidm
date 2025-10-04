@@ -87,6 +87,7 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     dm_system_prompt = load_prompt("system", "dm_original.md")
     dm_new_session_prompt = load_prompt("system", "dm_new_session.md")
     dm_new_campaign_prompt = load_prompt("system", "dm_new_campaign.md")
+    dm_post_session_prompt = load_prompt("system", "dm_post_session_analysis.md")
     
     # Vector store for world lore
     lore = LoreSearch.set_lore(collection=world_collection)
@@ -152,11 +153,19 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
         model="gpt-5"
     )
     
+    dm_post_session_agent = Agent(
+        name="Post-Session Analysis Agent",
+        instructions=dm_post_session_prompt,
+        tools=[],
+        model="gpt-4o"
+    )
+    
     return {
         "client": client,
         "dm_agent": dm_agent,
         "dm_new_session_agent": dm_new_session_agent,
         "dm_new_campaign_agent": dm_new_campaign_agent,
+        "dm_post_session_agent": dm_post_session_agent,
         "memory_search": mem
     }
 
@@ -383,14 +392,89 @@ async def get_active_session(campaign_id: str) -> Optional[dict]:
             return session
     return None
 
+async def generate_post_session_analysis(campaign_id: str, session: dict) -> str:
+    """Generate post-session analysis comparing planned vs actual events."""
+    try:
+        # Get campaign info for world collection
+        campaign = await load_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found - unable to generate analysis."
+        
+        world_collection = campaign.get("world_collection", "SwordCoast")
+        
+        # Set up agents
+        agents = setup_agents_for_campaign(campaign_id, world_collection)
+        post_session_agent = agents["dm_post_session_agent"]
+        
+        # Build analysis input
+        session_plan = session.get("session_plan", {})
+        chat_history = session.get("chat_history", [])
+        
+        # Format chat history for analysis
+        transcript = []
+        for turn in chat_history:
+            player_input = turn.get("user_input", "")
+            dm_response = turn.get("dm_response", "")
+            transcript.append(f"Player: {player_input}")
+            transcript.append(f"DM: {dm_response}")
+            transcript.append("")
+        
+        transcript_text = "\n".join(transcript)
+        
+        # Build prompt for analysis
+        analysis_request = f"""# Session Plan (INTENDED)
+
+```json
+{json.dumps(session_plan, indent=2)}
+```
+
+# Session Transcript (ACTUAL)
+
+{transcript_text}
+
+---
+
+Please provide a structured post-session analysis following the format specified in your instructions."""
+        
+        # Run analysis agent
+        runner = Runner(agent=post_session_agent)
+        result = await runner.run(analysis_request)
+        
+        # Extract analysis from result
+        analysis = result.final_output if hasattr(result, 'final_output') else str(result)
+        
+        jl_write({
+            "event": "post_session_analysis_generated",
+            "campaign_id": campaign_id,
+            "session_id": session.get("session_id"),
+            "ts": time.time()
+        })
+        
+        return analysis
+    
+    except Exception as e:
+        jl_write({
+            "event": "post_session_analysis_error",
+            "campaign_id": campaign_id,
+            "session_id": session.get("session_id"),
+            "error": str(e),
+            "ts": time.time()
+        })
+        return f"Error generating analysis: {str(e)}"
+
 async def close_session(campaign_id: str, session_id: str) -> dict:
-    """Mark a session as complete."""
+    """Mark a session as complete and generate post-session analysis."""
     session = await load_session(campaign_id, session_id)
     if not session:
         raise ValueError(f"Session {session_id} not found")
     
+    # Generate post-session analysis
+    post_session_analysis = await generate_post_session_analysis(campaign_id, session)
+    
+    # Update session with analysis and status
     session["status"] = "complete"
     session["last_activity"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    session["post_session_analysis"] = post_session_analysis
     
     # Save updated session
     session_path = Path(SESSIONS_BASE_PATH) / campaign_id / f"{session_id}_session.json"
