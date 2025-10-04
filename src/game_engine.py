@@ -147,7 +147,8 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     dm_new_session_agent = Agent(
         name="New Session Preparation Agent",
         instructions=dm_new_session_prompt,
-        tools=[review_last_session, search_lore, search_memory]
+        tools=[review_last_session, search_lore, search_memory],
+        model="gpt-5"
     )
     
     dm_new_campaign_agent = Agent(
@@ -161,7 +162,7 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
         name="Post-Session Analysis Agent",
         instructions=dm_post_session_prompt,
         tools=[],
-        model="gpt-4o"
+        model="gpt-5"
     )
     
     return {
@@ -448,12 +449,25 @@ async def generate_post_session_analysis(campaign_id: str, session: dict) -> str
         
         transcript_text = "\n".join(transcript)
         
-        # Build prompt for analysis
-        analysis_request = f"""# Session Plan (INTENDED)
+        # Get campaign outline for context
+        campaign_outline = campaign.get("outline", "")
+        
+        # Build prompt for analysis with campaign context
+        analysis_request = f"""# Campaign Overview
+
+The following is the complete campaign outline that provides the overall narrative arc:
+
+{campaign_outline}
+
+---
+
+# Session Plan (INTENDED)
 
 ```json
 {json.dumps(session_plan, indent=2)}
 ```
+
+---
 
 # Session Transcript (ACTUAL)
 
@@ -461,7 +475,7 @@ async def generate_post_session_analysis(campaign_id: str, session: dict) -> str
 
 ---
 
-Please provide a structured post-session analysis following the format specified in your instructions."""
+Please provide a structured post-session analysis following the format specified in your instructions. Use the campaign overview to assess whether this session moved the players toward the campaign's intended goals."""
         
         # Run analysis agent
         result = await Runner.run(post_session_agent, analysis_request)
