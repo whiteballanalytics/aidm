@@ -30,19 +30,20 @@ from library.logginghooks import LocalRunLogger, jl_write
 load_dotenv()
 
 # Configuration constants
-MEM_REGISTRY_PATH = "config/memorystores.json"
-MEM_MIRROR_PATH = "mirror/mem_mirror"
-CAMPAIGN_BASE_PATH = "mirror/campaigns"
-SESSIONS_BASE_PATH = "mirror/sessions"
+MEM_REGISTRY_PATH = "config/memorystores.json" # names of vector stores associated with each campaign
+MEM_MIRROR_PATH = "mirror/mem_mirror"          # local cache of memories in the vector stores
+CAMPAIGN_BASE_PATH = "mirror/campaigns"        # local store of campaign outlines
+SESSIONS_BASE_PATH = "mirror/sessions"         # local store of generated sessions and play history
 
 # Data models
-class SceneState(BaseModel):
-    time_of_day: str
-    region: str
-    sub_region: str
-    specific_location: str
-    participants: list[str]
-    exits: list[str]
+class CampaignInfo(BaseModel):
+    campaign_id: str
+    name: str
+    description: str
+    world_collection: str
+    created_at: str
+    last_played: Optional[str] = None
+    outline: str = ""
 
 class SessionStatus(BaseModel):
     session_id: str
@@ -54,14 +55,13 @@ class SessionStatus(BaseModel):
     summary: str = ""
     session_plan: dict = Field(default_factory=dict)
 
-class CampaignInfo(BaseModel):
-    campaign_id: str
-    name: str
-    description: str
-    world_collection: str
-    created_at: str
-    last_played: Optional[str] = None
-    outline: str = ""
+class SceneState(BaseModel):
+    time_of_day: str
+    region: str
+    sub_region: str
+    specific_location: str
+    participants: list[str]
+    exits: list[str]
 
 # Initialize OpenAI client
 def get_openai_client():
@@ -91,7 +91,7 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     Args:
         campaign_id: Unique identifier for the campaign
         world_collection: Name of the world lore collection to use (default: "SwordCoast")
-        campaign_outline: The full campaign outline JSON as a string (added Oct 4, 2025)
+        campaign_outline: The full campaign outline JSON as a string
     
     Returns:
         Dictionary containing initialized agents (dm_agent, dm_new_session_agent, etc.)
@@ -103,28 +103,18 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     dm_new_session_prompt = load_prompt("system", "dm_new_session.md")
     dm_new_campaign_prompt = load_prompt("system", "dm_new_campaign.md")
     dm_post_session_prompt = load_prompt("system", "dm_post_session_analysis.md")
-    
-    # ==================================================================================
-    # CHANGE (Oct 4, 2025): Campaign outline placeholder substitution
-    # ==================================================================================
-    # WHAT: Replace {campaign-outline} placeholder in dm_new_session.md with actual
-    #       campaign outline text
-    # WHY: The dm_new_session_agent needs the full campaign outline to plan sessions
-    #      that align with the intended narrative arc. The prompt template has a 
-    #      {campaign-outline} placeholder that must be replaced with real data.
-    # HOW: Simple string replacement - if outline provided, substitute it; otherwise
-    #      use fallback message indicating no outline is available
-    # NOTE: This happens once when agents are initialized, not on every session request
-    # ==================================================================================
+
+    # Replace {{}campaign-outline}} placeholder in dm_new_session.md with actual campaign outline text
     if campaign_outline:
-        dm_new_session_prompt = dm_new_session_prompt.replace("{campaign-outline}", campaign_outline)
+        dm_new_session_prompt = dm_new_session_prompt.replace("{{campaign-outline}}", campaign_outline)
     else:
-        dm_new_session_prompt = dm_new_session_prompt.replace("{campaign-outline}", "(No campaign outline available)")
+        dm_new_session_prompt = dm_new_session_prompt.replace("{{campaign-outline}}", "(No campaign outline available)")
     
     # Vector store for world lore
     lore = LoreSearch.set_lore(collection=world_collection)
     raw_lore_search_tool = lore.as_tool()
     
+    # Lore search tool
     lore_agent = Agent(
         name="Lore Agent",
         instructions="Use file_search over the world/canon store and return concise snippets.",
@@ -132,7 +122,7 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     )
     search_lore = lore_agent.as_tool(tool_name="searchLore", tool_description="Search world canon.")
     
-    # Campaign memory store
+    # Campaign memory tool
     mem_store_id = get_campaign_mem_store(client, campaign_id)
     mem = MemorySearch.from_id(
         campaign_id=campaign_id,
@@ -154,7 +144,19 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     
     # Dice roller
     def roll_impl(formula: str) -> dict:
-        """Dice roller for game mechanics."""
+        """
+        Dice roller for game mechanics. It returns the full results of the dice.
+        This helps in cases where a player might be allow to re-roll some dice.
+
+        Args:
+            formula: Dice roll formula as a string, e.g. "3d6+5".
+                - Format: "<number of dice>d<dice sides>[+/-modifier]"
+                - Examples: "2d20", "1d8-1", "4d6+3"
+                - Do NOT use words or spelled-out numbers (e.g. "Three D6 plus five" is invalid).
+
+        Returns:
+            dict with keys: rolls (list of ints), mod (int), total (int), or error (str) if formula is invalid.
+        """
         m = re.fullmatch(r"(\d+)d(\d+)([+-]\d+)?", formula.replace(" ", ""))
         if not m:
             return {"error": "Bad formula"}
@@ -165,20 +167,11 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     
     roll = function_tool(name_override="rollDice")(roll_impl)
     
-    # Create agents
-    dm_agent = Agent(
-        name="The Dungeon Master",
-        instructions=dm_system_prompt,
-        tools=[search_lore, search_memory, roll]
-    )
+    # ------------------------------------------------------------------------------
+    # -- CREATE AGENTS
+    # ------------------------------------------------------------------------------
     
-    dm_new_session_agent = Agent(
-        name="New Session Preparation Agent",
-        instructions=dm_new_session_prompt,
-        tools=[review_last_session, search_lore, search_memory],
-        model="gpt-4o"
-    )
-    
+    # Agent specifically for creating new campaigns
     dm_new_campaign_agent = Agent(
         name="New Campaign Preparation Agent",
         instructions=dm_new_campaign_prompt,
@@ -186,25 +179,44 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
         model="gpt-5"
     )
     
+    # Agent specifically for new session preparation
+    dm_new_session_agent = Agent(
+        name="New Session Preparation Agent",
+        instructions=dm_new_session_prompt,
+        tools=[review_last_session, search_lore, search_memory],
+        model="gpt-4o"
+    )
+
+    # Agent to analyse completed sessions
     dm_post_session_agent = Agent(
         name="Post-Session Analysis Agent",
         instructions=dm_post_session_prompt,
         tools=[],
         model="gpt-5"
     )
+
+    # The turn-by-turn DM agent
+    dm_agent = Agent(
+        name="The Dungeon Master",
+        instructions=dm_system_prompt,
+        tools=[search_lore, search_memory, roll]
+    )
     
     return {
         "client": client,
-        "dm_agent": dm_agent,
-        "dm_new_session_agent": dm_new_session_agent,
         "dm_new_campaign_agent": dm_new_campaign_agent,
+        "dm_new_session_agent": dm_new_session_agent,
         "dm_post_session_agent": dm_post_session_agent,
+        "dm_agent": dm_agent,
         "memory_search": mem
     }
 
 # Campaign management functions
 async def create_campaign(world_collection: str, user_description: str, campaign_name: Optional[str] = None) -> dict:
-    """Create a new campaign with AI-generated content."""
+    """
+    Create a new campaign with AI-generated content.
+    Usually triggered in the campaign tab of the UI.
+    """
     campaign_id = f"camp_{int(time.time())}"
     
     if not campaign_name:
@@ -247,8 +259,10 @@ async def create_campaign(world_collection: str, user_description: str, campaign
         "outline": campaign_text
     }
     
+    # Save campaign locally
     campaign_path.write_text(json.dumps(campaign_info, indent=2), encoding="utf-8")
     
+    # Logging for diagnostics / analytics
     jl_write({
         "event": "campaign_created",
         "campaign_id": campaign_id,
@@ -307,6 +321,7 @@ async def update_last_played(campaign_id: str) -> bool:
         # Save updated campaign data
         campaign_path.write_text(json.dumps(campaign_data, indent=2), encoding="utf-8")
         
+        # Logging for diagnostics / analytics
         jl_write({
             "event": "campaign_last_played_updated",
             "campaign_id": campaign_id,
@@ -319,7 +334,10 @@ async def update_last_played(campaign_id: str) -> bool:
 
 # Session management functions
 async def create_session(campaign_id: str) -> dict:
-    """Create a new game session for a campaign."""
+    """
+    Create a new game session for a campaign.
+    Usually triggered in the sessions tab of the UI.
+    """
     campaign = await load_campaign(campaign_id)
     if not campaign:
         raise ValueError(f"Campaign {campaign_id} not found")
@@ -333,39 +351,13 @@ async def create_session(campaign_id: str) -> dict:
     world_collection = campaign.get("world_collection", "SwordCoast")
     campaign_outline = campaign.get("outline", "")
     
-    # ==================================================================================
-    # CHANGE (Oct 4, 2025): Campaign outline context injection
-    # ==================================================================================
-    # WHAT: Pass campaign_outline to setup_agents_for_campaign() so it can substitute
-    #       the {campaign-outline} placeholder in dm_new_session.md prompt template
-    # WHY: The AI agent needs the full campaign outline to plan sessions that align
-    #      with the overall narrative arc and intended story progression
-    # HOW: Modified setup_agents_for_campaign() signature to accept campaign_outline
-    #      parameter, which it uses to replace {campaign-outline} in the prompt
-    # ==================================================================================
+    # Pass campaign_outline to setup_agents_for_campaign() so it can substitute the {{campaign-outline}} placeholder in dm_new_session.md prompt template
     agents = setup_agents_for_campaign(campaign_id, world_collection, campaign_outline)
     dm_new_session_agent = agents["dm_new_session_agent"]
     
-    # Build session planning prompt with campaign context
-    # The campaign outline is embedded directly in the request to provide full context
-    session_request = f"""# Campaign Overview
-
-The following is the complete campaign outline JSON that provides the overall narrative arc and planned sessions:
-
-{campaign_outline}
-
----
-
-# Your Task
-
-Using the campaign outline above as your guide, please plan the next session for this campaign. Follow the process outlined in your instructions:
-
-1. Call ReviewLastSession to see what happened in the most recent session (if any)
-2. Determine which scenario you're in (first session, on track, mid-session, missing element, or off-track)
-3. Search memories and lore as needed
-4. Plan a session that continues the story and moves toward the campaign's intended narrative
-
-Remember to complete the tool usage checklist before producing your JSON output."""
+    # Build session planning prompt
+    # The campaign outline is already embedded within the agent we are about to call
+    session_request = f"Plan the next session for this campaign."
     
     # Generate session content
     try:

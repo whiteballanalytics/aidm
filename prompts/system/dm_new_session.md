@@ -674,4 +674,4 @@ Below are 5 examples, one for each of the scenarios covered above in the "Potent
 
 # Campaign Outline
 
-{campaign-outline}
+{{campaign-outline}}
