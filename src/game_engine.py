@@ -783,6 +783,16 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
         update_payload = extract_update_payload(dm_response_clean) or {}
         dm_response = strip_json_block(dm_response_clean)
     
+    # Prepend opening read-aloud for the first turn
+    if session["turn_count"] == 0:
+        session_plan = session.get("session_plan", {})
+        beats = session_plan.get("beats", [])
+        if beats and len(beats) > 0:
+            opening_read_aloud = beats[0].get("read_aloud_open", "")
+            if opening_read_aloud and opening_read_aloud.strip():
+                # Prepend the opening read-aloud to the DM's response
+                dm_response = opening_read_aloud + "\n\n" + dm_response
+    
     # Update scene state if provided
     scene_patch = update_payload.get("scene_state_patch", {})
     if scene_patch:

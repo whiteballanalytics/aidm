@@ -1176,8 +1176,8 @@ class DnDApp {
         if (this.currentSession.chat_history && this.currentSession.chat_history.length > 0) {
             // Convert backend turn records to chat messages
             this.currentSession.chat_history.forEach(turn => {
-                // Add user message
-                if (turn.user_input) {
+                // Add user message (only if not empty - first turn may have opening without user input)
+                if (turn.user_input && turn.user_input.trim()) {
                     this.addChatMessage('user', turn.user_input);
                 }
                 // Add DM response
@@ -1186,7 +1186,8 @@ class DnDApp {
                 }
             });
         } else {
-            this.addChatMessage('system', 'Welcome to your D&D session! What would you like to do?');
+            // Show placeholder when waiting for first turn
+            this.addChatMessage('system', 'Send a message to begin your adventure...');
         }
         
         this.scrollChatToBottom();
