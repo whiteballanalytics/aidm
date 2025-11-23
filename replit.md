@@ -7,30 +7,6 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 
 ## Recent Changes
 
-### November 23, 2025 - Automatic Opening Read-Aloud
-- ✅ Implemented automatic opening read-aloud delivery when entering play mode
-  - Backend `ensure_opening_turn()` helper creates DM-only chat entry with opening
-  - Idempotent function checks `opening_delivered` flag to prevent duplicates
-  - Extracts opening from `session_plan.beats[0].read_aloud_open`
-  - Creates chat entry with empty user_input and meta={type: "opening"}
-  - Leaves `turn_count` at 0 (opening is not a player turn)
-  - Safe guards prevent crashes when session plan lacks beats or read_aloud_open
-- ✅ Created POST /api/campaigns/{cid}/sessions/{sid}/start endpoint
-  - Calls `ensure_opening_turn()` and returns updated session
-  - Idempotent - safe to call multiple times
-  - Returns full session with opening in chat_history
-- ✅ Frontend automatically requests opening when entering play mode
-  - `playSession()` → `initializeChat()` → `startSession()` async chain
-  - Frontend calls /start endpoint to deliver opening
-  - Updates currentSession with returned data (includes opening)
-  - `renderChatHistory()` displays opening immediately
-  - Filters empty user_input when rendering (opening has no user message)
-- ✅ Complete backend synchronization
-  - Opening properly recorded in chat_history (persists across page reloads)
-  - Game state advances correctly (beat tracking, turn counting)
-  - No duplicate openings on subsequent page loads
-- ✅ Architect-reviewed and validated implementation
-
 ### November 23, 2025 - Pixel-Perfect Banner Bridge System
 - ✅ Created automated banner gradient generator using Pillow
   - Extracts full edge columns from banner images (1024px height)

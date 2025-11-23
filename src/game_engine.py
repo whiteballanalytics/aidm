@@ -529,66 +529,6 @@ async def load_session(campaign_id: str, session_id: str) -> Optional[dict]:
     except (json.JSONDecodeError, IOError):
         return None
 
-async def ensure_opening_turn(campaign_id: str, session_id: str) -> dict:
-    """
-    Ensure the opening read-aloud has been delivered for a session.
-    This is idempotent - safe to call multiple times.
-    Returns the updated session with opening in chat_history.
-    """
-    # Load session
-    session = await load_session(campaign_id, session_id)
-    if not session:
-        raise ValueError(f"Session {session_id} not found")
-    
-    # Check if opening has already been delivered
-    if session.get("opening_delivered", False):
-        return session
-    
-    # Extract opening text from session plan
-    session_plan = session.get("session_plan", {})
-    beats = session_plan.get("beats", [])
-    opening_text = ""
-    
-    if beats and len(beats) > 0:
-        opening_text = beats[0].get("read_aloud_open", "")
-    
-    # If no opening text, mark as delivered and return (graceful fallback)
-    if not opening_text or not opening_text.strip():
-        session["opening_delivered"] = True
-        session_path = Path(SESSIONS_BASE_PATH) / campaign_id / f"{session_id}_session.json"
-        session_path.write_text(json.dumps(session, indent=2), encoding="utf-8")
-        return session
-    
-    # Create opening turn entry (DM-only, no user input)
-    opening_turn = {
-        "turn_number": 0,
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "user_input": "",
-        "dm_response": opening_text,
-        "scene_state": {},
-        "memory_writes": [],
-        "turn_summary": "",
-        "meta": {"type": "opening"}
-    }
-    
-    # Append to chat history
-    session["chat_history"].append(opening_turn)
-    session["opening_delivered"] = True
-    session["last_activity"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    
-    # Save updated session
-    session_path = Path(SESSIONS_BASE_PATH) / campaign_id / f"{session_id}_session.json"
-    session_path.write_text(json.dumps(session, indent=2), encoding="utf-8")
-    
-    jl_write({
-        "event": "opening_delivered",
-        "campaign_id": campaign_id,
-        "session_id": session_id,
-        "ts": time.time()
-    })
-    
-    return session
-
 async def list_sessions(campaign_id: str) -> list[dict]:
     """List all sessions for a campaign with status."""
     session_dir = Path(SESSIONS_BASE_PATH) / campaign_id
@@ -839,7 +779,7 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
         # First extract narrative from RunResult format if needed
         dm_response_clean = extract_narrative_from_runresult(dm_response_raw)
         
-        # Then strip any JSON blocks and extract updates
+        # Then strip any JSON blocks
         update_payload = extract_update_payload(dm_response_clean) or {}
         dm_response = strip_json_block(dm_response_clean)
     
