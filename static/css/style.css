@@ -56,8 +56,9 @@ body {
     left: 0;
     top: 0;
     height: 100%;
+    max-height: 120px;
     width: auto;
-    object-fit: cover;
+    object-fit: contain;
     z-index: 1;
 }
 
@@ -66,8 +67,9 @@ body {
     right: 0;
     top: 0;
     height: 100%;
+    max-height: 120px;
     width: auto;
-    object-fit: cover;
+    object-fit: contain;
     z-index: 1;
 }
 
