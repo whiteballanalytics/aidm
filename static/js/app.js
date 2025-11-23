@@ -1130,10 +1130,33 @@ class DnDApp {
         // Update play interface info
         const playInfo = document.getElementById('current-play-info');
         if (playInfo) {
+            // Get campaign information
+            const campaignName = this.currentCampaign.campaign_name || 'Untitled Campaign';
+            const truncatedName = campaignName.length > 40 ? campaignName.slice(0, 40) + '...' : campaignName;
+            
+            // Get session information
+            const sessionTitle = this.currentSession.session_plan?.session_title || 'Untitled Session';
+            const truncatedSessionTitle = sessionTitle.length > 50 ? sessionTitle.slice(0, 50) + '...' : sessionTitle;
+            
+            const turnCount = this.currentSession.turn_count || 0;
+            const turnText = turnCount === 0 ? 'No turns yet' : 
+                            turnCount === 1 ? '1 turn' : 
+                            `${turnCount} turns`;
+            
+            const statusClass = this.currentSession.status === 'open' ? 'status-active' : 'status-complete';
+            const statusText = this.currentSession.status === 'open' ? 'Active' : 'Complete';
+            
+            // Use same styling structure as Session Manager tab
             playInfo.innerHTML = `
-                <h3>${this.currentCampaign.campaign_name || 'Untitled Campaign'}</h3>
-                <p><strong>Session:</strong> ${this.currentSession.turn_number || 0} turns</p>
-                <p><strong>Status:</strong> ${this.currentSession.status}</p>
+                <h3>${truncatedName}</h3>
+                <div class="campaign-info-compact">
+                    <div class="campaign-info-row">
+                        <b>SESSION:</b> ${truncatedSessionTitle} &nbsp;&nbsp;&nbsp; <b>TURNS:</b> ${turnText}
+                    </div>
+                    <div class="campaign-info-row">
+                        <b>STATUS:</b> <span class="status-badge ${statusClass}">${statusText}</span>
+                    </div>
+                </div>
             `;
         }
 
