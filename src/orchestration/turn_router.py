@@ -9,7 +9,7 @@ import os
 from typing import Optional, Dict, Any
 from agents import Runner, Agent
 from library.logginghooks import LocalRunLogger
-from library.helpers import extract_update_payload, strip_json_block, extract_narrative_from_runresult
+from src.game_engine import extract_update_payload, strip_json_block, extract_narrative_from_runresult
 
 
 async def orchestrate_turn(
