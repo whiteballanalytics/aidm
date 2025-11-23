@@ -2,8 +2,8 @@
 
 :root {
     --background: #080B10;
-    --header-left: #202733;
-    --header-right: #883C0D;
+    --header-left: #010312;
+    --header-right: #0a090c;
     --primary-accent: #F4A259;
     --secondary-accent: #A3B9C9;
     --card-bg: #141923;
@@ -37,7 +37,10 @@ body {
 
 /* Header */
 .header {
-    background: linear-gradient(90deg, var(--header-left) 0%, var(--header-right) 100%);
+    background: url('/static/images/ui/banner_bridge.png');
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat;
     color: var(--text-primary);
     padding: 30px;
     text-align: center;
