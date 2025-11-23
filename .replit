@@ -46,3 +46,8 @@ externalPort = 3000
 [deployment]
 deploymentTarget = "vm"
 run = ["python", "run_server.py"]
+
+[userenv]
+
+[userenv.shared]
+USE_MULTI_AGENT_DM = "true"
