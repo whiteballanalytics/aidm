@@ -7,6 +7,7 @@ import random
 import re
 import json
 import time
+import textwrap
 from pathlib import Path
 from typing import Any, Optional, Literal
 from uuid import uuid4
@@ -22,6 +23,7 @@ from pydantic import BaseModel, Field
 
 # Project-local imports
 from library.vectorstores import LoreSearch, MemorySearch, get_campaign_mem_store
+from library.session_tools import SessionReview
 from library.prompts import load_prompt
 from library.logginghooks import LocalRunLogger, jl_write
 
@@ -29,19 +31,25 @@ from library.logginghooks import LocalRunLogger, jl_write
 load_dotenv()
 
 # Configuration constants
-MEM_REGISTRY_PATH = "config/memorystores.json"
-MEM_MIRROR_PATH = "mirror/mem_mirror"
-CAMPAIGN_BASE_PATH = "mirror/campaigns"
-SESSIONS_BASE_PATH = "mirror/sessions"
+MEM_REGISTRY_PATH = "config/memorystores.json" # names of vector stores associated with each campaign
+MEM_MIRROR_PATH = "mirror/mem_mirror"          # local cache of memories in the vector stores
+CAMPAIGN_BASE_PATH = "mirror/campaigns"        # local store of campaign outlines
+SESSIONS_BASE_PATH = "mirror/sessions"         # local store of generated sessions and play history
+
+# How many recent turns to include in the DM recap (default 3)
+RECENT_RECAP_TURNS = int(os.getenv("RECENT_RECAP_TURNS", "1000"))
+# Optional word cap for the recent recap (0 = no word cap). Keep most recent words when trimming.
+RECENT_RECAP_WORD_LIMIT = int(os.getenv("RECENT_RECAP_WORD_LIMIT", "4000"))
 
 # Data models
-class SceneState(BaseModel):
-    time_of_day: str
-    region: str
-    sub_region: str
-    specific_location: str
-    participants: list[str]
-    exits: list[str]
+class CampaignInfo(BaseModel):
+    campaign_id: str
+    name: str
+    description: str
+    world_collection: str
+    created_at: str
+    last_played: Optional[str] = None
+    outline: str = ""
 
 class SessionStatus(BaseModel):
     session_id: str
@@ -53,14 +61,13 @@ class SessionStatus(BaseModel):
     summary: str = ""
     session_plan: dict = Field(default_factory=dict)
 
-class CampaignInfo(BaseModel):
-    campaign_id: str
-    name: str
-    description: str
-    world_collection: str
-    created_at: str
-    last_played: Optional[str] = None
-    outline: str = ""
+class SceneState(BaseModel):
+    time_of_day: str
+    region: str
+    sub_region: str
+    specific_location: str
+    participants: list[str]
+    exits: list[str]
 
 # Initialize OpenAI client
 def get_openai_client():
@@ -73,24 +80,47 @@ def get_openai_client():
     client = OpenAI(api_key=agent_key)
     
     # Set up tracing
-    set_tracing_export_api_key(agent_key)
-    GLOBAL_TRACE_PROVIDER._multi_processor.force_flush()
+    try:
+        set_tracing_export_api_key(agent_key)
+        if GLOBAL_TRACE_PROVIDER and hasattr(GLOBAL_TRACE_PROVIDER, '_multi_processor'):
+            GLOBAL_TRACE_PROVIDER._multi_processor.force_flush()
+    except Exception:
+        pass  # Tracing setup is optional
     
     return client
 
 # Initialize agents and tools
-def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCoast"):
+def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCoast", campaign_outline: str = ""):
+    """
+    Initialize AI agents and tools for a D&D campaign.
+    
+    Args:
+        campaign_id: Unique identifier for the campaign
+        world_collection: Name of the world lore collection to use (default: "SwordCoast")
+        campaign_outline: The full campaign outline JSON as a string
+    
+    Returns:
+        Dictionary containing initialized agents (dm_agent, dm_new_session_agent, etc.)
+    """
     client = get_openai_client()
     
-    # System prompts
+    # System prompts - load from prompts/system/ directory
     dm_system_prompt = load_prompt("system", "dm_original.md")
     dm_new_session_prompt = load_prompt("system", "dm_new_session.md")
     dm_new_campaign_prompt = load_prompt("system", "dm_new_campaign.md")
+    dm_post_session_prompt = load_prompt("system", "dm_post_session_analysis.md")
+
+    # Replace {{}campaign-outline}} placeholder in dm_new_session.md with actual campaign outline text
+    if campaign_outline:
+        dm_new_session_prompt = dm_new_session_prompt.replace("{{campaign-outline}}", campaign_outline)
+    else:
+        dm_new_session_prompt = dm_new_session_prompt.replace("{{campaign-outline}}", "(No campaign outline available)")
     
     # Vector store for world lore
     lore = LoreSearch.set_lore(collection=world_collection)
     raw_lore_search_tool = lore.as_tool()
     
+    # Lore search tool
     lore_agent = Agent(
         name="Lore Agent",
         instructions="Use file_search over the world/canon store and return concise snippets.",
@@ -98,7 +128,7 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     )
     search_lore = lore_agent.as_tool(tool_name="searchLore", tool_description="Search world canon.")
     
-    # Campaign memory store
+    # Campaign memory tool
     mem_store_id = get_campaign_mem_store(client, campaign_id)
     mem = MemorySearch.from_id(
         campaign_id=campaign_id,
@@ -113,9 +143,26 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     )
     search_memory = mem_agent.as_tool(tool_name="searchMemory", tool_description="Search campaign memory.")
     
+    # Session review tool
+    session_review = SessionReview.from_campaign(campaign_id)
+    review_function = session_review.as_function()
+    review_last_session = function_tool(name_override="ReviewLastSession")(review_function)
+    
     # Dice roller
     def roll_impl(formula: str) -> dict:
-        """Dice roller for game mechanics."""
+        """
+        Dice roller for game mechanics. It returns the full results of the dice.
+        This helps in cases where a player might be allow to re-roll some dice.
+
+        Args:
+            formula: Dice roll formula as a string, e.g. "3d6+5".
+                - Format: "<number of dice>d<dice sides>[+/-modifier]"
+                - Examples: "2d20", "1d8-1", "4d6+3"
+                - Do NOT use words or spelled-out numbers (e.g. "Three D6 plus five" is invalid).
+
+        Returns:
+            dict with keys: rolls (list of ints), mod (int), total (int), or error (str) if formula is invalid.
+        """
         m = re.fullmatch(r"(\d+)d(\d+)([+-]\d+)?", formula.replace(" ", ""))
         if not m:
             return {"error": "Bad formula"}
@@ -126,19 +173,11 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     
     roll = function_tool(name_override="rollDice")(roll_impl)
     
-    # Create agents
-    dm_agent = Agent(
-        name="The Dungeon Master",
-        instructions=dm_system_prompt,
-        tools=[search_lore, search_memory, roll]
-    )
+    # ------------------------------------------------------------------------------
+    # -- CREATE AGENTS
+    # ------------------------------------------------------------------------------
     
-    dm_new_session_agent = Agent(
-        name="New Session Preparation Agent",
-        instructions=dm_new_session_prompt,
-        tools=[search_lore, search_memory]
-    )
-    
+    # Agent specifically for creating new campaigns
     dm_new_campaign_agent = Agent(
         name="New Campaign Preparation Agent",
         instructions=dm_new_campaign_prompt,
@@ -146,17 +185,44 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
         model="gpt-5"
     )
     
+    # Agent specifically for new session preparation
+    dm_new_session_agent = Agent(
+        name="New Session Preparation Agent",
+        instructions=dm_new_session_prompt,
+        tools=[review_last_session, search_lore, search_memory],
+        model="gpt-4o"
+    )
+
+    # Agent to analyse completed sessions
+    dm_post_session_agent = Agent(
+        name="Post-Session Analysis Agent",
+        instructions=dm_post_session_prompt,
+        tools=[],
+        model="gpt-5"
+    )
+
+    # The turn-by-turn DM agent
+    dm_agent = Agent(
+        name="The Dungeon Master",
+        instructions=dm_system_prompt,
+        tools=[search_lore, search_memory, roll]
+    )
+    
     return {
         "client": client,
-        "dm_agent": dm_agent,
-        "dm_new_session_agent": dm_new_session_agent,
         "dm_new_campaign_agent": dm_new_campaign_agent,
+        "dm_new_session_agent": dm_new_session_agent,
+        "dm_post_session_agent": dm_post_session_agent,
+        "dm_agent": dm_agent,
         "memory_search": mem
     }
 
 # Campaign management functions
-async def create_campaign(world_collection: str, user_description: str, campaign_name: str = None) -> dict:
-    """Create a new campaign with AI-generated content."""
+async def create_campaign(world_collection: str, user_description: str, campaign_name: Optional[str] = None) -> dict:
+    """
+    Create a new campaign with AI-generated content.
+    Usually triggered in the campaign tab of the UI.
+    """
     campaign_id = f"camp_{int(time.time())}"
     
     if not campaign_name:
@@ -199,8 +265,10 @@ async def create_campaign(world_collection: str, user_description: str, campaign
         "outline": campaign_text
     }
     
+    # Save campaign locally
     campaign_path.write_text(json.dumps(campaign_info, indent=2), encoding="utf-8")
     
+    # Logging for diagnostics / analytics
     jl_write({
         "event": "campaign_created",
         "campaign_id": campaign_id,
@@ -259,6 +327,7 @@ async def update_last_played(campaign_id: str) -> bool:
         # Save updated campaign data
         campaign_path.write_text(json.dumps(campaign_data, indent=2), encoding="utf-8")
         
+        # Logging for diagnostics / analytics
         jl_write({
             "event": "campaign_last_played_updated",
             "campaign_id": campaign_id,
@@ -271,7 +340,10 @@ async def update_last_played(campaign_id: str) -> bool:
 
 # Session management functions
 async def create_session(campaign_id: str) -> dict:
-    """Create a new game session for a campaign."""
+    """
+    Create a new game session for a campaign.
+    Usually triggered in the sessions tab of the UI.
+    """
     campaign = await load_campaign(campaign_id)
     if not campaign:
         raise ValueError(f"Campaign {campaign_id} not found")
@@ -283,28 +355,65 @@ async def create_session(campaign_id: str) -> dict:
     
     session_id = str(int(time.time()))
     world_collection = campaign.get("world_collection", "SwordCoast")
+    campaign_outline = campaign.get("outline", "")
     
-    # Set up agents for this campaign
-    agents = setup_agents_for_campaign(campaign_id, world_collection)
+    # Pass campaign_outline to setup_agents_for_campaign() so it can substitute the {{campaign-outline}} placeholder in dm_new_session.md prompt template
+    agents = setup_agents_for_campaign(campaign_id, world_collection, campaign_outline)
     dm_new_session_agent = agents["dm_new_session_agent"]
+    
+    # Build session planning prompt
+    # The campaign outline is already embedded within the agent we are about to call
+    session_request = f"Plan the next session for this campaign."
     
     # Generate session content
     try:
-        result = await Runner.run(dm_new_session_agent, "Create a new session", hooks=LocalRunLogger())
+        result = await Runner.run(dm_new_session_agent, session_request, hooks=LocalRunLogger())
     except Exception as e:
         raise Exception(f"Error generating session: {e}")
     
-    # Get session content
+    # Retrieve the session plan as text
     session_text = (
-        getattr(result, "output_text", None)
+        getattr(result, "final_output", None)  # RunResult.final_output contains the agent's text output
+        or getattr(result, "output_text", None)  # Fallback for other result types
         or getattr(result, "content", None)
         or str(result)
     )
     
-    # Extract JSON from session text
-    session_data = extract_update_payload(session_text) or {}
+    # Extract JSON from session text using the helper function
+    session_plan = extract_update_payload(session_text) or {}
     
-    # Create session info with status
+    # Check JSON for key elements
+    required_keys = ['session_title', 'beats']
+    missing_keys = [key for key in required_keys if key not in session_plan]
+    
+    if not session_plan or missing_keys:
+        # Log the failure for debugging
+        jl_write({
+            "event": "session_plan_extraction_failed",
+            "campaign_id": campaign_id,
+            "session_id": session_id,
+            "has_data": bool(session_plan),
+            "output_length": len(session_text),
+            "missing_keys": missing_keys,
+            "ts": time.time()
+        })
+        
+        # Raise descriptive exception with debugging info
+        error_details = []
+        if not session_plan:
+            error_details.append("no data extracted from agent output")
+        else:
+            error_details.append(f"missing required keys: {', '.join(missing_keys)}")
+        
+        error_details.append(f"extracted_data={'yes' if session_plan else 'no'}")
+        error_details.append(f"output_length={len(session_text)}")
+        
+        raise Exception(
+            f"Session plan extraction/validation failed: {'; '.join(error_details)}"
+        )
+    
+    # Generate structured JSON containing session info, plus metadata
+    # This will be saved as the session file and used as a persistent file ongoing
     session_info = {
         "session_id": session_id,
         "campaign_id": campaign_id,
@@ -313,10 +422,8 @@ async def create_session(campaign_id: str) -> dict:
         "last_activity": time.strftime("%Y-%m-%d %H:%M:%S"),
         "turn_count": 0,
         "summary": "Session just started",
-        "session_plan": session_data.get("session_plan", {}),
-        "opening_read_aloud": session_data.get("session_plan", {}).get("opening_read_aloud", ""),
-        "initial_scene_state": session_data.get("initial_scene_state_patch", {}),
-        "chat_history": []
+        "session_plan": session_plan,  # All session planning data (beats, NPCs, locations, etc.)
+        "chat_history": []  # Player/DM conversation history populated during gameplay
     }
     
     # Save session file
@@ -377,14 +484,92 @@ async def get_active_session(campaign_id: str) -> Optional[dict]:
             return session
     return None
 
+async def generate_post_session_analysis(campaign_id: str, session: dict) -> str:
+    """Generate post-session analysis comparing planned vs actual events."""
+    try:
+        # Get campaign info for world collection
+        campaign = await load_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found - unable to generate analysis."
+        
+        world_collection = campaign.get("world_collection", "SwordCoast")
+        campaign_outline = campaign.get("outline", "")
+        
+        # Set up agents with campaign outline
+        agents = setup_agents_for_campaign(campaign_id, world_collection, campaign_outline)
+        post_session_agent = agents["dm_post_session_agent"]
+        
+        # Build analysis input
+        session_plan = session.get("session_plan", {})
+        chat_history = session.get("chat_history", [])
+        
+        # Format chat history for analysis
+        transcript = []
+        for turn in chat_history:
+            player_input = turn.get("user_input", "")
+            dm_response = turn.get("dm_response", "")
+            transcript.append(f"Player: {player_input}")
+            transcript.append(f"DM: {dm_response}")
+            transcript.append("")
+        
+        transcript_text = "\n".join(transcript)
+        
+        # Build prompt for analysis with campaign context
+        analysis_request = textwrap.dedent(f"""
+        # Campaign Overview
+        The following is the complete campaign outline that provides the overall narrative arc:
+        {campaign_outline}
+        ---
+        # Session Plan (INTENDED)
+        ```json
+        {json.dumps(session_plan, indent=2)}
+        ```
+        ---
+        # Session Transcript (ACTUAL)
+        {transcript_text}
+        ---
+        Please provide a structured post-session analysis following the format specified in your instructions.
+        Use the campaign overview to assess whether this session moved the players toward the campaign's intended goals.
+        """).strip()
+        
+        # Run analysis agent
+        result = await Runner.run(post_session_agent, analysis_request)
+        
+        # Extract analysis from result
+        analysis = result.final_output if hasattr(result, 'final_output') else str(result)
+        
+        jl_write({
+            "event": "post_session_analysis_generated",
+            "campaign_id": campaign_id,
+            "session_id": session.get("session_id"),
+            "ts": time.time()
+        })
+        
+        return analysis
+    
+    except Exception as e:
+        jl_write({
+            "event": "post_session_analysis_error",
+            "campaign_id": campaign_id,
+            "session_id": session.get("session_id"),
+            "error": str(e),
+            "ts": time.time()
+        })
+        return f"Error generating analysis: {str(e)}"
+
 async def close_session(campaign_id: str, session_id: str) -> dict:
-    """Mark a session as complete."""
+    """Mark a session as complete and generate post-session analysis."""
     session = await load_session(campaign_id, session_id)
     if not session:
         raise ValueError(f"Session {session_id} not found")
     
+    # Generate post-session analysis
+    post_session_analysis = await generate_post_session_analysis(campaign_id, session)
+    
+    # Update session with analysis and status
     session["status"] = "complete"
     session["last_activity"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    session["post_session_analysis"] = post_session_analysis
     
     # Save updated session
     session_path = Path(SESSIONS_BASE_PATH) / campaign_id / f"{session_id}_session.json"
@@ -433,16 +618,27 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
     
     # Apply initial scene if this is the first turn
     if session["turn_count"] == 0:
-        initial_scene = session.get("initial_scene_state", {})
+        session_plan = session.get("session_plan", {})
+        # Get initial scene state patch from session plan
+        initial_scene = session_plan.get("initial_scene_state_patch", {}) or session.get("initial_scene_state", {})
         scene_state = merge_scene_patch(scene_state, initial_scene)
     
-    # Get recent context from chat history
+    # Get recent context from chat history (configurable via RECENT_RECAP_TURNS and RECENT_RECAP_WORD_LIMIT)
     chat_history = session.get("chat_history", [])
     recent_recap = ""
     if len(chat_history) > 0:
-        # Get last few turns for context
-        recent_turns = chat_history[-3:] if len(chat_history) >= 3 else chat_history
-        recent_recap = " ".join([f"Player: {turn.get('user_input', '')} DM: {turn.get('dm_response', '')}" for turn in recent_turns])
+        # Determine how many turns to include (if RECENT_RECAP_TURNS <= 0, include all)
+        num_turns = RECENT_RECAP_TURNS if RECENT_RECAP_TURNS > 0 else len(chat_history)
+        recent_turns = chat_history[-num_turns:] if len(chat_history) >= num_turns else chat_history
+        recent_recap = " ".join([
+            f"Player: {turn.get('user_input', '')} DM: {turn.get('dm_response', '')}"
+            for turn in recent_turns
+        ])
+        # Optionally trim to a maximum number of words, keeping the most recent words
+        if RECENT_RECAP_WORD_LIMIT and RECENT_RECAP_WORD_LIMIT > 0:
+            words = recent_recap.split()
+            if len(words) > RECENT_RECAP_WORD_LIMIT:
+                recent_recap = " ".join(words[-RECENT_RECAP_WORD_LIMIT:])
     
     # Build context for the DM
     session_plan = session.get("session_plan", {})
@@ -527,7 +723,7 @@ def dm_context_blob(session_plan: dict[str, Any], scene_state: SceneState, recen
         "DM CONTEXT\n"
         "Session plan:\n" + json.dumps(session_plan, ensure_ascii=False) + "\n\n"
         "SceneState JSON:\n" + json.dumps(scene_state.model_dump(), ensure_ascii=False) + "\n\n"
-        "Recent Recap (<=200 words):\n" + (recent_recap or "(none)") + "\n"
+        "Recent Recap:\n" + (recent_recap or "(none)") + "\n"
         "END CONTEXT\n"
     )
 
