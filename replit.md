@@ -7,6 +7,22 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 
 ## Recent Changes
 
+### November 23, 2025 - Pixel-Perfect Banner Bridge System
+- ✅ Created automated banner gradient generator using Pillow
+  - Extracts full edge columns from banner images (1024px height)
+  - Generates 100px wide bridge PNG with pixel-perfect interpolation
+  - Preserves vertical color variation row-by-row for seamless transitions
+  - Handles transparency compositing on dark background (#080B10)
+- ✅ Implemented pixel-perfect header design
+  - Left banner positioned at left edge, auto-sized to header height
+  - Right banner positioned at right edge, auto-sized to header height
+  - Bridge image stretched across full header width with `background-size: 100% 100%`
+  - No visible seams or color jumps between banners and bridge
+- ✅ Created regeneration workflow in `scripts/generate_banner_gradient.py`
+  - Script outputs `static/images/ui/banner_bridge.png`
+  - Documented in `scripts/README.md` for future banner updates
+- ✅ Architect-reviewed and validated for pixel-perfect quality
+
 ### November 23, 2025 - Multi-Agent DM System Complete
 - ✅ Implemented router-based multi-agent orchestration for DM responses
   - Created 7 specialized agents with distinct roles:
