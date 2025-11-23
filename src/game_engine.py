@@ -7,6 +7,7 @@ import random
 import re
 import json
 import time
+import textwrap
 from pathlib import Path
 from typing import Any, Optional, Literal
 from uuid import uuid4
@@ -34,6 +35,11 @@ MEM_REGISTRY_PATH = "config/memorystores.json" # names of vector stores associat
 MEM_MIRROR_PATH = "mirror/mem_mirror"          # local cache of memories in the vector stores
 CAMPAIGN_BASE_PATH = "mirror/campaigns"        # local store of campaign outlines
 SESSIONS_BASE_PATH = "mirror/sessions"         # local store of generated sessions and play history
+
+# How many recent turns to include in the DM recap (default 3)
+RECENT_RECAP_TURNS = int(os.getenv("RECENT_RECAP_TURNS", "1000"))
+# Optional word cap for the recent recap (0 = no word cap). Keep most recent words when trimming.
+RECENT_RECAP_WORD_LIMIT = int(os.getenv("RECENT_RECAP_WORD_LIMIT", "4000"))
 
 # Data models
 class CampaignInfo(BaseModel):
@@ -365,16 +371,7 @@ async def create_session(campaign_id: str) -> dict:
     except Exception as e:
         raise Exception(f"Error generating session: {e}")
     
-    # ==================================================================================
-    # CHANGE (Oct 4, 2025): Fixed result extraction to use correct attribute
-    # ==================================================================================
-    # WHAT: Changed from using result.output_text to result.final_output
-    # WHY: The RunResult object from Runner.run() stores the agent's actual text output
-    #      in the final_output attribute, not output_text. Using the wrong attribute
-    #      caused empty session plans because we weren't getting the AI's response.
-    # HOW: Access result.final_output first, with fallbacks to legacy attributes for
-    #      backwards compatibility with different result object types
-    # ==================================================================================
+    # Retrieve the session plan as text
     session_text = (
         getattr(result, "final_output", None)  # RunResult.final_output contains the agent's text output
         or getattr(result, "output_text", None)  # Fallback for other result types
@@ -383,31 +380,9 @@ async def create_session(campaign_id: str) -> dict:
     )
     
     # Extract JSON from session text using the helper function
-    session_data = extract_update_payload(session_text) or {}
+    session_plan = extract_update_payload(session_text) or {}
     
-    # ==================================================================================
-    # CHANGE (Oct 4, 2025): Fixed session plan structure assignment
-    # ==================================================================================
-    # WHAT: The extracted JSON IS the session plan directly, not nested under a key
-    # WHY: Previously code looked for session_data["session_plan"] which didn't exist.
-    #      The AI agent returns JSON with top-level keys: session_title, beats, npcs, 
-    #      locations, etc. This IS the session plan, not a wrapper around it.
-    # HOW: Assign session_data directly to session_plan (it's already the plan)
-    # ==================================================================================
-    session_plan = session_data if session_data else {}
-    
-    # ==================================================================================
-    # CHANGE (Oct 4, 2025): Added validation to prevent empty session plans
-    # ==================================================================================
-    # WHAT: Validate that the session plan has required keys (session_title, beats)
-    #       and raise an error if validation fails
-    # WHY: Previously, if the AI failed to produce valid JSON or was missing required
-    #      fields, the system would silently save an empty session plan to disk. This
-    #      made debugging difficult and created unusable sessions.
-    # HOW: Check for required keys, log diagnostic information, and raise a descriptive
-    #      exception with debugging context if validation fails. This prevents bad
-    #      sessions from being created and provides clear error messages.
-    # ==================================================================================
+    # Check JSON for key elements
     required_keys = ['session_title', 'beats']
     missing_keys = [key for key in required_keys if key not in session_plan]
     
@@ -417,7 +392,7 @@ async def create_session(campaign_id: str) -> dict:
             "event": "session_plan_extraction_failed",
             "campaign_id": campaign_id,
             "session_id": session_id,
-            "has_data": bool(session_data),
+            "has_data": bool(session_plan),
             "output_length": len(session_text),
             "missing_keys": missing_keys,
             "ts": time.time()
@@ -430,26 +405,15 @@ async def create_session(campaign_id: str) -> dict:
         else:
             error_details.append(f"missing required keys: {', '.join(missing_keys)}")
         
-        error_details.append(f"extracted_data={'yes' if session_data else 'no'}")
+        error_details.append(f"extracted_data={'yes' if session_plan else 'no'}")
         error_details.append(f"output_length={len(session_text)}")
         
         raise Exception(
             f"Session plan extraction/validation failed: {'; '.join(error_details)}"
         )
     
-    # ==================================================================================
-    # CHANGE (Oct 4, 2025): Cleaned up session structure - removed duplicate fields
-    # ==================================================================================
-    # WHAT: Removed opening_read_aloud and initial_scene_state from session root
-    # WHY: These fields were duplicating data already in the session_plan:
-    #      - opening_read_aloud duplicated session_plan.beats[0].read_aloud_open
-    #      - initial_scene_state duplicated session_plan.initial_scene_state_patch
-    #      Having the same data in two places created confusion and maintenance issues.
-    # HOW: Session now only stores session_plan (which contains all the data) and
-    #      runtime fields (chat_history, status, timestamps, etc.)
-    # BACKWARDS COMPATIBILITY: Old sessions with top-level fields still work via
-    #      fallback logic in play_turn() and main.py (see comments there)
-    # ==================================================================================
+    # Generate structured JSON containing session info, plus metadata
+    # This will be saved as the session file and used as a persistent file ongoing
     session_info = {
         "session_id": session_id,
         "campaign_id": campaign_id,
@@ -551,29 +515,22 @@ async def generate_post_session_analysis(campaign_id: str, session: dict) -> str
         transcript_text = "\n".join(transcript)
         
         # Build prompt for analysis with campaign context
-        analysis_request = f"""# Campaign Overview
-
-The following is the complete campaign outline that provides the overall narrative arc:
-
-{campaign_outline}
-
----
-
-# Session Plan (INTENDED)
-
-```json
-{json.dumps(session_plan, indent=2)}
-```
-
----
-
-# Session Transcript (ACTUAL)
-
-{transcript_text}
-
----
-
-Please provide a structured post-session analysis following the format specified in your instructions. Use the campaign overview to assess whether this session moved the players toward the campaign's intended goals."""
+        analysis_request = textwrap.dedent(f"""
+        # Campaign Overview
+        The following is the complete campaign outline that provides the overall narrative arc:
+        {campaign_outline}
+        ---
+        # Session Plan (INTENDED)
+        ```json
+        {json.dumps(session_plan, indent=2)}
+        ```
+        ---
+        # Session Transcript (ACTUAL)
+        {transcript_text}
+        ---
+        Please provide a structured post-session analysis following the format specified in your instructions.
+        Use the campaign overview to assess whether this session moved the players toward the campaign's intended goals.
+        """).strip()
         
         # Run analysis agent
         result = await Runner.run(post_session_agent, analysis_request)
@@ -662,27 +619,26 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
     # Apply initial scene if this is the first turn
     if session["turn_count"] == 0:
         session_plan = session.get("session_plan", {})
-        # ==================================================================================
-        # CHANGE (Oct 4, 2025): Backwards compatibility for initial_scene_state
-        # ==================================================================================
-        # WHAT: Try new location first (session_plan.initial_scene_state_patch), 
-        #       fallback to legacy location (session.initial_scene_state)
-        # WHY: Old sessions created before the cleanup have initial_scene_state at the
-        #      session root. New sessions have it in session_plan.initial_scene_state_patch.
-        #      Using 'or' ensures both old and new sessions work correctly.
-        # HOW: Check session_plan first (new location), if empty/missing check session
-        #      root (legacy location). This preserves backwards compatibility.
-        # ==================================================================================
+        # Get initial scene state patch from session plan
         initial_scene = session_plan.get("initial_scene_state_patch", {}) or session.get("initial_scene_state", {})
         scene_state = merge_scene_patch(scene_state, initial_scene)
     
-    # Get recent context from chat history
+    # Get recent context from chat history (configurable via RECENT_RECAP_TURNS and RECENT_RECAP_WORD_LIMIT)
     chat_history = session.get("chat_history", [])
     recent_recap = ""
     if len(chat_history) > 0:
-        # Get last few turns for context
-        recent_turns = chat_history[-3:] if len(chat_history) >= 3 else chat_history
-        recent_recap = " ".join([f"Player: {turn.get('user_input', '')} DM: {turn.get('dm_response', '')}" for turn in recent_turns])
+        # Determine how many turns to include (if RECENT_RECAP_TURNS <= 0, include all)
+        num_turns = RECENT_RECAP_TURNS if RECENT_RECAP_TURNS > 0 else len(chat_history)
+        recent_turns = chat_history[-num_turns:] if len(chat_history) >= num_turns else chat_history
+        recent_recap = " ".join([
+            f"Player: {turn.get('user_input', '')} DM: {turn.get('dm_response', '')}"
+            for turn in recent_turns
+        ])
+        # Optionally trim to a maximum number of words, keeping the most recent words
+        if RECENT_RECAP_WORD_LIMIT and RECENT_RECAP_WORD_LIMIT > 0:
+            words = recent_recap.split()
+            if len(words) > RECENT_RECAP_WORD_LIMIT:
+                recent_recap = " ".join(words[-RECENT_RECAP_WORD_LIMIT:])
     
     # Build context for the DM
     session_plan = session.get("session_plan", {})
@@ -767,7 +723,7 @@ def dm_context_blob(session_plan: dict[str, Any], scene_state: SceneState, recen
         "DM CONTEXT\n"
         "Session plan:\n" + json.dumps(session_plan, ensure_ascii=False) + "\n\n"
         "SceneState JSON:\n" + json.dumps(scene_state.model_dump(), ensure_ascii=False) + "\n\n"
-        "Recent Recap (<=200 words):\n" + (recent_recap or "(none)") + "\n"
+        "Recent Recap:\n" + (recent_recap or "(none)") + "\n"
         "END CONTEXT\n"
     )
 
