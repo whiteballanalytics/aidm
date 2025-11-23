@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from game_engine import (
     create_campaign, load_campaign, list_campaigns, update_last_played,
     create_session, load_session, list_sessions, get_active_session, close_session,
-    play_turn, get_available_worlds
+    play_turn, get_available_worlds, ensure_opening_turn
 )
 from main import strip_json_block
 from game_engine import extract_narrative_from_runresult
@@ -169,6 +169,16 @@ async def close_session_endpoint(request):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 # Game Play
+async def start_session_endpoint(request):
+    """POST /api/campaigns/{campaign_id}/sessions/{session_id}/start - Start session and deliver opening"""
+    campaign_id = request.path_params["campaign_id"]
+    session_id = request.path_params["session_id"]
+    try:
+        session = await ensure_opening_turn(campaign_id, session_id)
+        return JSONResponse(session)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 async def play_turn_endpoint(request):
     """POST /api/campaigns/{campaign_id}/sessions/{session_id}/turn - Play a turn"""
     campaign_id = request.path_params["campaign_id"]
@@ -359,6 +369,7 @@ routes = [
     Route('/api/campaigns/{campaign_id}/sessions/{session_id}/close', close_session_endpoint, methods=["POST"]),
     
     # Game play
+    Route('/api/campaigns/{campaign_id}/sessions/{session_id}/start', start_session_endpoint, methods=["POST"]),
     Route('/api/campaigns/{campaign_id}/sessions/{session_id}/turn', play_turn_endpoint, methods=["POST"]),
     
     # WebSocket for real-time chat

@@ -984,7 +984,7 @@ class DnDApp {
             }
             
             this.showTab('play');
-            this.initializeChat();
+            await this.initializeChat();
         } catch (error) {
             console.error('Failed to load session:', error);
         }
@@ -1124,7 +1124,7 @@ class DnDApp {
     }
 
     // Chat/Play Interface
-    initializeChat() {
+    async initializeChat() {
         if (!this.currentSession || !this.currentCampaign) return;
         
         // Update play interface info
@@ -1160,11 +1160,31 @@ class DnDApp {
             `;
         }
 
+        // Start session (delivers opening if not already delivered)
+        await this.startSession();
+        
         // Load chat history
         this.renderChatHistory();
         
         // Setup WebSocket connection
         this.connectWebSocket();
+    }
+
+    async startSession() {
+        // Call the start endpoint to ensure opening is delivered
+        // This is idempotent - safe to call multiple times
+        try {
+            const session = await this.apiRequest(
+                `/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${this.currentSession.session_id}/start`,
+                { method: 'POST' }
+            );
+            
+            // Update current session with returned data (including opening in chat_history)
+            this.currentSession = session;
+        } catch (error) {
+            console.error('Failed to start session:', error);
+            // Continue anyway - session may already have opening
+        }
     }
 
     renderChatHistory() {
@@ -1176,7 +1196,7 @@ class DnDApp {
         if (this.currentSession.chat_history && this.currentSession.chat_history.length > 0) {
             // Convert backend turn records to chat messages
             this.currentSession.chat_history.forEach(turn => {
-                // Add user message (only if not empty - first turn may have opening without user input)
+                // Add user message (only if not empty - opening turn has no user input)
                 if (turn.user_input && turn.user_input.trim()) {
                     this.addChatMessage('user', turn.user_input);
                 }
@@ -1185,9 +1205,6 @@ class DnDApp {
                     this.addChatMessage('dm', turn.dm_response);
                 }
             });
-        } else {
-            // Show placeholder when waiting for first turn
-            this.addChatMessage('system', 'Send a message to begin your adventure...');
         }
         
         this.scrollChatToBottom();
