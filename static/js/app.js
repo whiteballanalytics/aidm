@@ -1186,8 +1186,9 @@ class DnDApp {
                 }
             });
         } else {
-            // No chat history yet - display opening read-aloud from session plan
-            const readAloud = this.currentSession.session_plan?.read_aloud;
+            // No chat history yet - display opening read-aloud from first beat
+            const firstBeat = this.currentSession.session_plan?.beats?.[0];
+            const readAloud = firstBeat?.read_aloud_open;
             if (readAloud) {
                 this.addChatMessage('dm', readAloud);
             } else {
