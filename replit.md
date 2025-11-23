@@ -7,6 +7,31 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 
 ## Recent Changes
 
+### November 23, 2025 - Multi-Agent DM System Complete
+- ✅ Implemented router-based multi-agent orchestration for DM responses
+  - Created 7 specialized agents with distinct roles:
+    - **Router Agent**: Classifies player input intent and routes to appropriate specialist
+    - **Narrative Short Agent**: Provides 1-2 sentence descriptions for routine actions
+    - **Narrative Long Agent**: Provides 2-5 paragraph rich descriptions for significant moments
+    - **Q&A Situation Agent**: Answers questions about environment, NPCs, and spatial details
+    - **Q&A Rules Agent**: Answers D&D 5e rules questions using searchLore
+    - **Travel Agent**: Resolves movement and journey mechanics
+    - **Gameplay Agent**: Adjudicates dice rolls and action resolution
+  - Each specialist has appropriate tool access (lore, memory, dice) for their role
+  - Single-hop architecture: Router → Specialist → Response (no agent chaining)
+- ✅ Created orchestration layer in `src/orchestration/turn_router.py`
+  - Handles router classification and specialist dispatch
+  - Merges specialist responses with session state updates
+  - Robust JSON parsing (bare JSON first, then fenced blocks)
+  - Detailed logging for routing decisions and debugging
+- ✅ Feature flag integration with backwards compatibility
+  - `USE_MULTI_AGENT_DM` environment variable enables/disables multi-agent system
+  - Defaults to disabled (false) for backwards compatibility
+  - Legacy single-agent path preserved when disabled
+- ✅ All 7 prompts created in `prompts/system/` directory
+- ✅ All agents use `gpt-4o-mini` model for cost efficiency
+- ✅ Architect-reviewed and validated implementation
+
 ### October 4, 2025 - Session Generation System Complete
 - ✅ Fixed campaign outline template substitution in session planning
   - Modified `setup_agents_for_campaign()` to accept `campaign_outline` parameter
