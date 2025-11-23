@@ -1186,7 +1186,13 @@ class DnDApp {
                 }
             });
         } else {
-            this.addChatMessage('system', 'Welcome to your D&D session! What would you like to do?');
+            // No chat history yet - display opening read-aloud from session plan
+            const readAloud = this.currentSession.session_plan?.read_aloud;
+            if (readAloud) {
+                this.addChatMessage('dm', readAloud);
+            } else {
+                this.addChatMessage('system', 'Welcome to your D&D session! What would you like to do?');
+            }
         }
         
         this.scrollChatToBottom();
