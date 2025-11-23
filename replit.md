@@ -7,6 +7,22 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 
 ## Recent Changes
 
+### November 23, 2025 - Automatic Opening Read-Aloud
+- ✅ Implemented automatic opening read-aloud delivery on first turn
+  - Backend prepends `beats[0].read_aloud_open` to DM response when `turn_count == 0`
+  - Works with both multi-agent and legacy single-agent DM paths
+  - Proper JSON stripping ensures no payloads shown to players
+  - Update payload extraction preserved (turn summaries, scene patches, memory writes)
+  - Safe guards prevent crashes when session plan lacks beats or read_aloud_open
+- ✅ Frontend filters empty user inputs when rendering chat history
+  - Shows placeholder "Send a message to begin your adventure..." when no chat history
+  - Clean display without fake user messages or client-side hacks
+- ✅ Complete backend synchronization
+  - Opening properly recorded in chat_history (persists across page reloads)
+  - Game state advances correctly (beat tracking, turn counting)
+  - No duplicate openings on subsequent page loads
+- ✅ Architect-reviewed and validated for both code paths
+
 ### November 23, 2025 - Pixel-Perfect Banner Bridge System
 - ✅ Created automated banner gradient generator using Pillow
   - Extracts full edge columns from banner images (1024px height)
