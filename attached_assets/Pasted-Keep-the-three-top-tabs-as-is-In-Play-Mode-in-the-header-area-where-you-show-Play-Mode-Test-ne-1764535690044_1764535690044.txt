@@ -1,0 +1,139 @@
+Keep the three top tabs as-is.
+
+In Play Mode, in the header area where you show “Play Mode / Test new markdown output / Session status”, add:
+
+A “Party” button (or icon + label) on the right:
+
+Example: 👥 Party (4) or Party & Characters.
+
+Clicking opens a right-hand slide-over (or modal) for character management.
+
+A smaller “Add character” icon inside that Party panel (rather than cluttering the main header).
+
+You called it a modal, but a slide-over from the right will feel more “in context” while still behaving like a modal (blocking background interactions).
+
+2.2. Party panel / modal layout
+
+Top of panel
+
+Title: Party for: [Campaign Name]
+
+Subline: “Session: [Session name]”
+
+Button: + Add character
+
+Body: two-column layout within the panel
+
+Left column: character list
+
+Scrollable list of character cards:
+
+Avatar (class icon or image)
+
+Character name
+
+Player name (optional)
+
+HP bar (current / max)
+
+Tag: PC / NPC
+
+Selecting a character focuses it in the right column.
+
+Right column: character detail
+
+Tabs or sections:
+
+Overview (for quick mid-play reference)
+
+HP with +/- buttons
+
+AC, passive Perception, key saves
+
+Main ability modifiers
+
+Conditions (toggle chips)
+
+Resources
+
+Spell slots with tick boxes
+
+Limited features (“Rage 2/3”, “Ki 4/6”)
+
+Notes / History
+
+DM & player notes
+
+Auto-generated timeline of changes this session.
+
+This avoids re-building a full sheet; it’s a “battle dashboard” more than a builder.
+
+2.3. “Add character” flow
+
+When + Add character is clicked, open a sub-modal (or stepper) inside the panel:
+
+Step 1: Source
+
+Radio buttons:
+
+Import from D&D Beyond
+
+Quick NPC
+
+Import from D&D Beyond
+
+For a first iteration:
+
+Field: “Paste your DNDBeyond character URL”
+
+On submit, you:
+
+Extract character ID.
+
+Call your backend to pull down the JSON from DNDBeyond.
+
+Show a confirmation:
+
+Name, class & level, race, background.
+
+Player name (free text).
+
+Checkbox: “Share mechanical details with the AI DM” (important for privacy).
+
+Save as:
+
+Campaign-level character (so it’s reusable in future sessions).
+
+Automatically mark it as “Included in current session”.
+
+Quick NPC
+
+Fields:
+
+Name
+
+Role (tag: ally / enemy / neutral)
+
+HP / AC / key notes
+
+Used for recurring NPCs, hirelings, etc.
+
+2.4. In-chat integrations
+
+To make it feel magic in Play Mode:
+
+Message actions:
+When the AI DM says: “The cultist stabs Thalia for 11 piercing damage,” show a little button under that message:
+
+Apply 11 damage to Thalia
+
+Clicking directly updates her HP in the Party panel.
+
+Character chips on messages:
+When a player speaks, show a tiny character tag under their name:
+
+“Alice (playing Thalia)”
+Hovering that tag displays a mini character tooltip: name, HP bar, AC, passive Perception.
+
+Status pips in the Party button:
+If any character is 0 HP, the Party (4) button gets a red dot; if someone has an active condition, maybe a subtle icon.

@@ -138,8 +138,18 @@
 
             <!-- Play Mode Tab -->
             <div id="play-tab" class="tab-content">
-                <h2>Play Mode</h2>
-                <p>Interactive D&D gameplay with your AI Dungeon Master.</p>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div>
+                        <h2>Play Mode</h2>
+                        <p>Interactive D&D gameplay with your AI Dungeon Master.</p>
+                    </div>
+                    <button class="btn-party" id="party-button" title="Manage party">
+                        👥 Party
+                    </button>
+                </div>
+
+                <!-- Live Character Display -->
+                <div id="live-party-display" class="live-party-display"></div>
 
                 <div class="card-grid">
                     <div id="current-play-info" class="card">
