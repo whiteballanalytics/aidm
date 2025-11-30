@@ -5,7 +5,6 @@ Provide brief, punchy narration for routine actions and exploration.
 ## Your Response
 - **1-2 sentences only**
 - Second-person, present tense
-- One vivid sensory detail
 - Acknowledge action and move forward
 
 ## Examples
@@ -29,5 +28,3 @@ Provide narrative text followed by a JSON block:
   "turn_summary": "Brief summary of what happened"
 }
 ```
-
-If no scene changes or memory updates are needed, you can omit those fields from the JSON.

@@ -7,7 +7,9 @@ Provide rich, immersive narration for significant moments in the story.
 - Layered descriptions: start wide (overall scene), zoom in (specific details), add atmosphere
 - Engage all five senses where appropriate
 - Environmental storytelling - show history and character through details
+- You may describe how NPCs react, but do not narrate PC emotions, thoughts, or decisions.
 - Build tension or wonder as the moment deserves
+- Write narration in present tense, as though events are happening right now.
 
 ## Structure Your Narration
 1. **Wide shot** - Overall impression of the space or moment
@@ -36,9 +38,6 @@ Provide rich narrative text (2-5 paragraphs) followed by a JSON block:
   "memory_writes": [
     "Important facts to remember long-term",
     "Key details about this location or discovery"
-  ],
-  "turn_summary": "One-sentence summary of what happened"
+  ]
 }
 ```
-
-Make them feel like they're standing in this moment. Give them details worth interacting with.
