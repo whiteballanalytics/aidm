@@ -18,13 +18,14 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 - ✅ Configured speakable intents:
   - `narrative_short`, `narrative_long`, `qa_situation`, `travel`
   - Rules checks (`qa_rules`) and gameplay do NOT speak
-- ✅ Added frontend audio playback
-  - `speakDMResponse()` method fetches audio from backend
-  - Triggers on WebSocket and REST DM responses
-  - Speaking state UI indicator (green mic button)
+- ✅ Opt-in TTS with play button on DM messages
+  - Small play button in bottom-right corner of speakable DM messages
+  - Click to play, click again to pause/stop
+  - AbortController support for cancelling pending requests
+  - Button state syncs with playback lifecycle (play/pause icons)
 - ✅ Documented gpt-4o-mini-tts upgrade path for future instructable speech
 
-**DM Now Speaks:** The Dungeon Master will read narrative descriptions, travel scenes, and situation answers aloud using the fable voice. Set `VOICE_TTS_ENABLED=true` to enable.
+**DM Audio is Opt-In:** Click the play button on any narrative, travel, or situation response to hear the DM speak. Set `VOICE_TTS_ENABLED=true` to enable.
 
 ### November 30, 2025 - Voice Input Architecture (Phase 1)
 - ✅ Created voice architecture documentation (`docs/VOICE_ARCHITECTURE.md`)
