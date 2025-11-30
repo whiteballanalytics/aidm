@@ -377,10 +377,11 @@ body {
 
 .chat-message {
     margin-bottom: 15px;
-    padding: 12px 18px;
+    padding: 8px 18px;
     border-radius: 18px;
     max-width: 80%;
     word-wrap: break-word;
+    position: relative;
 }
 
 .chat-message.user {
@@ -389,6 +390,9 @@ body {
     margin-left: auto;
     text-align: right;
     box-shadow: 0 2px 10px rgba(244, 162, 89, 0.4);
+    max-width: fit-content;
+    max-width: min(80%, 600px);
+    min-width: 100px;
 }
 
 .chat-message.dm {
@@ -396,6 +400,57 @@ body {
     border: 2px solid var(--border-color);
     color: var(--text-primary);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* DM Message Variants */
+.chat-message.dm-narrative {
+    background: var(--card-bg);
+    border: 2px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.chat-message.dm-npc {
+    background: #2a2d35;
+    border: 2px solid #5a4a3a;
+    color: #e8e6e0;
+    font-style: italic;
+}
+
+.chat-message.dm-meta {
+    background: #1e2330;
+    border: 2px solid #3a4a5a;
+    color: var(--text-primary);
+}
+
+.chat-message.dm-meta::before {
+    content: "ℹ️ ";
+    margin-right: 6px;
+}
+
+/* Agent Badge */
+.agent-badge {
+    display: inline-block;
+    font-size: 0.7em;
+    opacity: 0.6;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-right: 8px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.chat-message.dm-npc .agent-badge {
+    background: rgba(139, 115, 85, 0.3);
+}
+
+.chat-message.dm-meta .agent-badge {
+    background: rgba(90, 106, 122, 0.3);
+}
+
+/* Toggle badges visibility - remove .show-badges class to hide all badges */
+.chat-messages:not(.show-badges) .agent-badge {
+    display: none;
 }
 
 .chat-message.system {

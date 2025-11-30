@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎲 D&D AI Dungeon Master</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=20251123-cover-fix">
+    <link rel="stylesheet" href="/static/css/style.css?v=20251130-chat-fix">
 </head>
 <body>
     <div class="container">
@@ -149,7 +149,7 @@
                 </div>
 
                 <div class="chat-container">
-                    <div id="chat-messages" class="chat-messages">
+                    <div id="chat-messages" class="chat-messages show-badges">
                         <div class="chat-message system">
                             Select an active session to begin your adventure
                         </div>
@@ -172,18 +172,19 @@
                 <div class="card" style="margin-top: 20px;">
                     <h4>🎮 How to Play</h4>
                     <ul>
-                        <li><strong>Describe your actions:</strong> "I examine the door for traps"</li>
-                        <li><strong>Interact with the world:</strong> "I talk to the innkeeper"</li>
-                        <li><strong>Make choices:</strong> "I choose to help the villagers"</li>
-                        <li><strong>Ask questions:</strong> "What do I see in the room?"</li>
+                        <li><strong>Explore and act:</strong> "I examine the door" · "I head to the blacksmith"</li>
+                        <li><strong>Talk and interact:</strong> "I ask the innkeeper about the rumors"</li>
+                        <li><strong>Use skills:</strong> "I sneak past the guard" · "I try to persuade them"</li>
+                        <li><strong>Ask questions:</strong> "What do I see?" · "How does this spell work?"</li>
+                        <li><strong>Combat and challenges:</strong> "I attack" · "I cast Fireball"</li>
                     </ul>
-                    <p><em>The AI Dungeon Master will respond to your actions and guide the story forward.</em></p>
+                    <p><em>The AI Dungeon Master will respond dynamically based on your actions.</em></p>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
-    <script src="/static/js/app.js?v=20251123-readaloud-fix"></script>
+    <script src="/static/js/app.js?v=20251130-close-loading"></script>
 </body>
 </html>

@@ -1108,14 +1108,17 @@ class DnDApp {
         this.showThemedConfirm(
             'Are you sure you want to close this session? It cannot be reopened.',
             async () => {
+                this.showLoading('Generating post-session analysis... this can take a few minutes');
                 try {
                     await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${sessionId}/close`, {
                         method: 'POST'
                     });
                     
+                    this.hideLoading();
                     this.showAlert('Session closed successfully!', 'success');
                     await this.refreshSessions();
                 } catch (error) {
+                    this.hideLoading();
                     console.error('Failed to close session:', error);
                     this.showAlert('Failed to close session', 'error');
                 }
@@ -1139,12 +1142,18 @@ class DnDApp {
             const truncatedSessionTitle = sessionTitle.length > 50 ? sessionTitle.slice(0, 50) + '...' : sessionTitle;
             
             const turnCount = this.currentSession.turn_count || 0;
-            const turnText = turnCount === 0 ? 'No turns yet' : 
-                            turnCount === 1 ? '1 turn' : 
-                            `${turnCount} turns`;
+            const isOpen = this.currentSession.status === 'open';
+            let turnText;
+            if (turnCount === 0) {
+                turnText = 'No turns yet';
+            } else if (turnCount === 1) {
+                turnText = isOpen ? '1 turn before current session' : '1 turn';
+            } else {
+                turnText = isOpen ? `${turnCount} turns before current session` : `${turnCount} turns`;
+            }
             
-            const statusClass = this.currentSession.status === 'open' ? 'status-active' : 'status-complete';
-            const statusText = this.currentSession.status === 'open' ? 'Active' : 'Complete';
+            const statusClass = isOpen ? 'status-active' : 'status-complete';
+            const statusText = isOpen ? 'Active' : 'Complete';
             
             // Use same styling structure as Session Manager tab
             playInfo.innerHTML = `
@@ -1180,9 +1189,9 @@ class DnDApp {
                 if (turn.user_input) {
                     this.addChatMessage('user', turn.user_input);
                 }
-                // Add DM response
+                // Add DM response with intent if available
                 if (turn.dm_response) {
-                    this.addChatMessage('dm', turn.dm_response);
+                    this.addChatMessage('dm', turn.dm_response, turn.intent_used);
                 }
             });
         } else {
@@ -1199,16 +1208,62 @@ class DnDApp {
         this.scrollChatToBottom();
     }
 
-    addChatMessage(role, content) {
+    addChatMessage(role, content, intent = null) {
         const container = document.getElementById('chat-messages');
         if (!container) return;
         
+        // Purge old "thinking" system messages only - preserve welcome/error messages
+        if (role === 'system' && content.includes('Dungeon Master is considering')) {
+            const existingThinkingMessages = Array.from(container.querySelectorAll('.chat-message.system'))
+                .filter(msg => msg.textContent.includes('Dungeon Master is considering'));
+            existingThinkingMessages.forEach(msg => msg.remove());
+        }
+        
         const messageDiv = document.createElement('div');
-        messageDiv.className = `chat-message ${role}`;
-        messageDiv.textContent = content;
+        let className = `chat-message ${role}`;
+        
+        // Add intent-specific styling for DM messages
+        if (role === 'dm' && intent) {
+            if (intent === 'npc_dialogue') {
+                className += ' dm-npc';
+            } else if (intent === 'qa_rules' || intent === 'qa_situation') {
+                className += ' dm-meta';
+            } else {
+                className += ' dm-narrative';
+            }
+            
+            // Add agent badge (with show-badges toggle class on container)
+            const badge = document.createElement('span');
+            badge.className = 'agent-badge';
+            badge.textContent = this.getAgentLabel(intent);
+            messageDiv.appendChild(badge);
+        } else if (role === 'dm') {
+            // Default to narrative styling for DM messages without intent
+            className += ' dm-narrative';
+        }
+        
+        // Apply the className to the element
+        messageDiv.className = className;
+        
+        const textNode = document.createTextNode(content);
+        messageDiv.appendChild(textNode);
         
         container.appendChild(messageDiv);
         this.scrollChatToBottom();
+    }
+    
+    getAgentLabel(intent) {
+        const labels = {
+            'narrative_short': 'Narrative',
+            'narrative_long': 'Narrative',
+            'qa_situation': 'Situation',
+            'qa_rules': 'Rules',
+            'npc_dialogue': 'NPC',
+            'combat_designer': 'Combat',
+            'travel': 'Travel',
+            'gameplay': 'Gameplay'
+        };
+        return labels[intent] || 'DM';
     }
 
     scrollChatToBottom() {
@@ -1233,14 +1288,13 @@ class DnDApp {
         
         this.websocket.onopen = () => {
             console.log('WebSocket connected');
-            this.addChatMessage('system', 'Connected to game session');
         };
         
         this.websocket.onmessage = (event) => {
             const data = JSON.parse(event.data);
             
             if (data.type === 'dm_response') {
-                this.addChatMessage('dm', data.dm_response);
+                this.addChatMessage('dm', data.dm_response, data.intent_used);
                 // Update session info
                 if (data.turn_number) {
                     this.currentSession.turn_number = data.turn_number;
@@ -1259,7 +1313,6 @@ class DnDApp {
         
         this.websocket.onclose = () => {
             console.log('WebSocket disconnected');
-            this.addChatMessage('system', 'Disconnected from game session');
         };
     }
 
@@ -1297,7 +1350,7 @@ class DnDApp {
                 })
             });
             
-            this.addChatMessage('dm', result.dm_response);
+            this.addChatMessage('dm', result.dm_response, result.intent_used);
             
             if (result.turn_number) {
                 this.currentSession.turn_number = result.turn_number;
