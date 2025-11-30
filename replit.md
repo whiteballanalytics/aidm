@@ -7,6 +7,25 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 
 ## Recent Changes
 
+### November 30, 2025 - Voice Output (TTS) Implementation (Phase 2)
+- ✅ Implemented OpenAI TTS provider (`src/voice/tts/openai_tts.py`)
+  - Uses `tts-1` model with `fable` voice (British, expressive - great for fantasy)
+  - Implements both streaming and full synthesis methods
+  - Proper API key fallback chain
+- ✅ Created `/api/tts` endpoint for text-to-speech requests
+  - Validates TTS is enabled and intent is speakable
+  - Returns audio/mpeg response from synthesized speech
+- ✅ Configured speakable intents:
+  - `narrative_short`, `narrative_long`, `qa_situation`, `travel`
+  - Rules checks (`qa_rules`) and gameplay do NOT speak
+- ✅ Added frontend audio playback
+  - `speakDMResponse()` method fetches audio from backend
+  - Triggers on WebSocket and REST DM responses
+  - Speaking state UI indicator (green mic button)
+- ✅ Documented gpt-4o-mini-tts upgrade path for future instructable speech
+
+**DM Now Speaks:** The Dungeon Master will read narrative descriptions, travel scenes, and situation answers aloud using the fable voice. Set `VOICE_TTS_ENABLED=true` to enable.
+
 ### November 30, 2025 - Voice Input Architecture (Phase 1)
 - ✅ Created voice architecture documentation (`docs/VOICE_ARCHITECTURE.md`)
   - Design goals, STT/TTS strategies, extension points
@@ -21,14 +40,14 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
   - Web Speech API integration for browser-native STT
   - Microphone button with listening/speaking/error states
   - Interim transcription display with graceful cancellation
-  - Direct message submission bypassing DOM race conditions
+  - Text placed in input field for review before submission
 - ✅ Added UI components for voice input
-  - Microphone button with SVG icon in chat form
+  - Microphone button positioned between input and Send button
   - Pulsing animation for listening state
   - Status indicator below input field
   - CSS styles for all voice states
 
-**Voice Input Now Works:** Click the microphone button in Chrome/Edge to speak your commands. Phase 2 (TTS providers) and Phase 3 (backend integration) planned for future work.
+**Voice Input Works:** Click the microphone button in Chrome/Edge to speak your commands. Text appears in the input field for review before you submit.
 
 ### November 30, 2025 - Session Close Loading Overlay
 - ✅ Added loading overlay to Close Session button
