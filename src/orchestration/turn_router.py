@@ -12,6 +12,82 @@ from library.logginghooks import LocalRunLogger
 from src.game_engine import extract_update_payload, strip_json_block, extract_narrative_from_runresult
 
 
+def build_agent_context(
+    agent_type: str,
+    session_context: Dict[str, Any],
+    user_input: str
+) -> str:
+    """
+    Build context tailored to each agent type.
+    
+    Different agents need different levels of context, for example:
+    - router needs minimal context (recent recap only) to classify intent quickly
+    - qa_situation may need more context to accurately understand the situation
+    
+    Args:
+        agent_type: Type of agent requesting context (e.g., "router", "narrative_short")
+        session_context: Dictionary containing various context objects
+        user_input: The player's input text
+    
+    Returns:
+        Formatted context string appropriate for the agent type
+    """
+    recent_recap = session_context.get("recent_recap", "")
+    
+    if agent_type == "router":
+        # Router only needs recent recap to classify intent quickly
+        return recent_recap or "(No recent history)"
+    
+    elif agent_type in ("narrative_short", "narrative_long"):
+        # Narrative agents need full DM context
+        return f"""{session_context}
+
+Player: {user_input}"""
+    
+    elif agent_type == "qa_rules":
+        # Rules QA agents need full DM context
+        return f"""{session_context}
+
+Player: {user_input}"""
+    
+    elif agent_type == "npc_dialogue":
+        # NPC Dialogue needs full context to understand the NPC's personality and the scene
+        return f"""{session_context}
+
+Player: {user_input}"""
+    
+    elif agent_type == "combat_designer":
+        # Combat Designer needs full context to design appropriate encounters
+        return f"""{session_context}
+
+Player: {user_input}"""
+    
+    elif agent_type == "qa_situation":
+        # Situation QA agents need full DM context
+        return f"""{session_context}
+
+Player: {user_input}"""
+    
+    elif agent_type == "travel":
+        # Travel agents need full DM context
+        return f"""{session_context}
+
+Player: {user_input}"""
+    
+    elif agent_type == "gameplay":
+        # Gameplay agents need full DM context
+        # Debatable - we should try to make this more efficient later
+        return f"""{session_context}
+
+Player: {user_input}"""
+    
+    else:
+        # Default: return full DM context
+        return f"""{session_context}
+
+Player: {user_input}"""
+
+
 async def orchestrate_turn(
     campaign_id: str,
     session_id: str,
@@ -37,15 +113,17 @@ async def orchestrate_turn(
     
     # Step 1: Route to appropriate agent
     router_agent = agents["router"]
-    dm_input = session_context["dm_input"]
+    
+    # Build router-specific context (minimal: only recent recap)
+    router_context = build_agent_context("router", session_context, user_input)
     
     # Ask router to classify intent
     router_prompt = f"""Classify this player input:
 
 {user_input}
 
-Context:
-{dm_input[:500]}...
+Context (recent events):
+{router_context}...
 """
     
     try:
@@ -99,6 +177,8 @@ Context:
         "narrative_long": agents.get("narrative_long"),
         "qa_situation": agents.get("qa_situation"),
         "qa_rules": agents.get("qa_rules"),
+        "npc_dialogue": agents.get("npc_dialogue"),
+        "combat_designer": agents.get("combat_designer"),
         "travel": agents.get("travel"),
         "gameplay": agents.get("gameplay")
     }
@@ -110,10 +190,8 @@ Context:
         specialist_agent = agents["narrative_short"]
         intent = "narrative_short"
     
-    # Build full context for specialist agent
-    specialist_input = f"""{dm_input}
-
-Player: {user_input}"""
+    # Build specialist-specific context based on agent type
+    specialist_input = build_agent_context(intent, session_context, user_input)
     
     # Run specialist agent
     try:

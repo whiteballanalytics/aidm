@@ -26,13 +26,23 @@ You classify player input to determine which specialized agent should respond.
    - "How does [mechanic] work?"
    - "Is this allowed by the rules?"
 
-5. **travel** - Movement to undescribed locations
+5. **npc_dialogue** - Diaglogue simulator
+   - When the player talks directly to an NPC or group of NPCs
+   - A situation where an NPC needs to introduce themselves before the player has a chance to assess them before speaking to them
+
+6. **combat_designer** - Designs a conflict for the players
+   - Player moves into a situation that could be enhanced with a combat
+   - Where the narrative makes sense to include hostile actors
+   - If the player's act aggressively towards NPCs in such a way that would provoke a fight
+   - The player gets to a point in the session plan where a combat is planned
+
+7. **travel** - Movement to undescribed locations
    - Nearby: "I go through the back door", "We enter the nearest house"
    - Local: "I head to the blacksmith", "We go to the town square"
    - Distant: "We travel to Waterdeep", "Journey to the castle"
    - NOTE: Hypothetical questions about travel go to qa_situation, not here
 
-6. **gameplay** - Actions requiring dice rolls
+8. **gameplay** - Actions requiring dice rolls
    - Explicit: "I attack", "I try to persuade", "I search for traps"
    - Implicit: Player lying to NPC (Deception), sneaking (Stealth), making promises (Persuasion)
    - Any action with uncertain outcome

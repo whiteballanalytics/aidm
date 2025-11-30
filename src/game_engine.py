@@ -205,7 +205,8 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     dm_agent = Agent(
         name="The Dungeon Master",
         instructions=dm_system_prompt,
-        tools=[search_lore, search_memory, roll]
+        tools=[search_lore, search_memory, roll],
+        model="gpt-4o"
     )
     
     # ------------------------------------------------------------------------------
@@ -218,6 +219,8 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     narrative_long_prompt = load_prompt("system", "dm_narrative_long.md")
     qa_situation_prompt = load_prompt("system", "dm_qa_situation.md")
     qa_rules_prompt = load_prompt("system", "dm_qa_rules.md")
+    npc_dialogue_prompt = load_prompt("system", "dm_npc_dialogue.md")
+    combat_designer_prompt = load_prompt("system", "dm_combat_designer.md")
     travel_prompt = load_prompt("system", "dm_travel.md")
     gameplay_prompt = load_prompt("system", "dm_gameplay.md")
     
@@ -259,6 +262,22 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
         model="gpt-4o-mini"
     )
     
+    # NPC Dialogue agent (focused on NPC interactions and dialogue)
+    npc_dialogue_agent = Agent(
+        name="DM NPC Dialogue",
+        instructions=npc_dialogue_prompt,
+        tools=[search_lore, search_memory, roll],
+        model="gpt-4o-mini"
+    )
+    
+    # Combat Designer agent (designs and facilitates combat encounters)
+    combat_designer_agent = Agent(
+        name="DM Combat Designer",
+        instructions=combat_designer_prompt,
+        tools=[search_lore, search_memory, roll],
+        model="gpt-4o-mini"
+    )
+    
     # Travel agent (full tool access)
     travel_agent = Agent(
         name="DM Travel",
@@ -288,6 +307,8 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
         "narrative_long": narrative_long_agent,
         "qa_situation": qa_situation_agent,
         "qa_rules": qa_rules_agent,
+        "npc_dialogue": npc_dialogue_agent,
+        "combat_designer": combat_designer_agent,
         "travel": travel_agent,
         "gameplay": gameplay_agent
     }
@@ -662,6 +683,7 @@ async def close_session(campaign_id: str, session_id: str) -> dict:
 # Game play functions
 async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id: str = "web_user") -> dict:
     """Process a single turn of gameplay."""
+
     # Load session and campaign
     session = await load_session(campaign_id, session_id)
     if not session:
