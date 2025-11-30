@@ -447,8 +447,14 @@ async def import_dndbeyond_character_endpoint(request):
         print(f"Error importing character: {e}")
         traceback.print_exc()
         error_msg = str(e)
+        if "403" in error_msg or "Forbidden" in error_msg:
+            return JSONResponse({
+                "error": "This character is private. Please go to your character on D&D Beyond, open Settings, and set Character Privacy to 'Public' before importing."
+            }, status_code=403)
         if "404" in error_msg or "Not Found" in error_msg:
-            return JSONResponse({"error": "Character not found. Make sure the character is public on D&D Beyond."}, status_code=404)
+            return JSONResponse({
+                "error": "Character not found. Please check the ID and make sure the character exists on D&D Beyond."
+            }, status_code=404)
         return JSONResponse({"error": f"Failed to import character: {error_msg}"}, status_code=500)
 
 
