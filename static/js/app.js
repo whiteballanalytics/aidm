@@ -226,14 +226,40 @@ class DnDApp {
                         </div>
                         `}
                         
-                        <div class="card" style="cursor: pointer; margin-bottom: 0; opacity: 0.5;">
-                            <h4 style="color: var(--text-muted); margin-bottom: 8px;">📄 Upload New PDF</h4>
-                            <p style="font-size: 0.9em;">Coming soon - replace character data with a new PDF upload.</p>
+                        <div class="card" style="cursor: pointer; margin-bottom: 0;" onclick="app.showUpdatePDFForm('${charId}'); this.closest('[style*=fixed]').remove();">
+                            <h4 style="color: var(--primary-accent); margin-bottom: 8px;">📄 Upload New PDF</h4>
+                            <p style="font-size: 0.9em;">Replace this character's data with a new PDF character sheet.</p>
                         </div>
                     </div>
                     
                     <div class="text-center mt-20">
                         <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    showUpdatePDFForm(charId) {
+        const char = this.characters.find(c => c.id === charId);
+        if (!char) return;
+        
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 450px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3>Update ${char.name} from PDF</h3>
+                    <p style="margin-bottom: 20px; color: var(--text-muted);">Select a new PDF character sheet:</p>
+                    
+                    <div class="form-group">
+                        <input type="file" id="pdf-upload-input" class="form-input" accept=".pdf"
+                               style="padding: 10px;">
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                        <button class="btn" onclick="app.uploadPDF('${charId}')">Update Character</button>
                     </div>
                 </div>
             </div>
@@ -399,7 +425,7 @@ class DnDApp {
         document.body.appendChild(modal);
     }
     
-    uploadPDF() {
+    async uploadPDF(charIdToUpdate = null) {
         const input = document.getElementById('pdf-upload-input');
         const file = input?.files?.[0];
         
@@ -408,12 +434,66 @@ class DnDApp {
             return;
         }
         
-        // TODO: Implement PDF upload and extraction
-        console.log('Uploading PDF:', file.name);
-        this.showAlert(`PDF "${file.name}" received. Backend extraction coming soon!`, 'info');
-        
-        // Close modal
         document.querySelector('[style*="z-index: 1100"]')?.remove();
+        
+        try {
+            this.showLoading(charIdToUpdate ? 'Updating character from PDF...' : 'Importing character from PDF...');
+            
+            const formData = new FormData();
+            formData.append('pdf_file', file);
+            if (this.currentCampaign?.campaign_id) {
+                formData.append('campaign_id', this.currentCampaign.campaign_id);
+            }
+            
+            let url = '/api/characters/import/pdf';
+            if (charIdToUpdate) {
+                url = `/api/characters/${charIdToUpdate}/update-pdf`;
+            }
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) {
+                        errorMessage = errorData.error;
+                    }
+                } catch (e) {}
+                throw new Error(errorMessage);
+            }
+            
+            const character = await response.json();
+            
+            if (charIdToUpdate) {
+                const index = this.characters.findIndex(c => c.id === charIdToUpdate);
+                if (index !== -1) {
+                    const wasLive = this.characters[index].isLive;
+                    this.characters[index] = { ...character, isLive: wasLive };
+                }
+            } else {
+                this.characters.push({
+                    ...character,
+                    isLive: false
+                });
+            }
+            
+            if (this.partyPanelOpen) {
+                this.renderCharacters();
+            }
+            this.updateLivePartyDisplay();
+            
+            this.showAlert(`Successfully ${charIdToUpdate ? 'updated' : 'imported'} ${character.name}!`, 'success');
+            
+        } catch (error) {
+            console.error('Failed to upload PDF:', error);
+            this.showAlert(error.message || 'Failed to process PDF file.', 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
 
     // API Methods

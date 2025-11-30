@@ -35,6 +35,8 @@ from game_engine import extract_narrative_from_runresult
 # Import character management module
 from characters import (
     import_character_from_dndbeyond,
+    import_character_from_pdf,
+    update_character_from_pdf,
     list_characters,
     get_character,
     get_character_json,
@@ -459,6 +461,70 @@ async def import_dndbeyond_character_endpoint(request):
         return JSONResponse({"error": f"Failed to import character: {error_msg}"}, status_code=500)
 
 
+async def import_pdf_character_endpoint(request):
+    """POST /api/characters/import/pdf - Import a character from a PDF file"""
+    import traceback
+    try:
+        form = await request.form()
+        pdf_file = form.get("pdf_file")
+        campaign_id = form.get("campaign_id")
+        
+        if not pdf_file:
+            return JSONResponse({"error": "pdf_file is required"}, status_code=400)
+        
+        pdf_content = await pdf_file.read()
+        
+        if len(pdf_content) == 0:
+            return JSONResponse({"error": "PDF file is empty"}, status_code=400)
+        
+        print(f"Importing character from PDF ({len(pdf_content)} bytes)")
+        character = await import_character_from_pdf(pdf_content, campaign_id if campaign_id else None)
+        print(f"Successfully imported character from PDF: {character.get('name', 'Unknown')}")
+        return JSONResponse(character, status_code=201)
+        
+    except ValueError as e:
+        print(f"ValueError importing PDF character: {e}")
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        print(f"Error importing PDF character: {e}")
+        traceback.print_exc()
+        return JSONResponse({"error": f"Failed to import character from PDF: {str(e)}"}, status_code=500)
+
+
+async def update_character_from_pdf_endpoint(request):
+    """POST /api/characters/{character_id}/update-pdf - Update a character from a PDF file"""
+    import traceback
+    character_id = request.path_params["character_id"]
+    try:
+        form = await request.form()
+        pdf_file = form.get("pdf_file")
+        
+        if not pdf_file:
+            return JSONResponse({"error": "pdf_file is required"}, status_code=400)
+        
+        pdf_content = await pdf_file.read()
+        
+        if len(pdf_content) == 0:
+            return JSONResponse({"error": "PDF file is empty"}, status_code=400)
+        
+        print(f"Updating character {character_id} from PDF ({len(pdf_content)} bytes)")
+        character = await update_character_from_pdf(character_id, pdf_content)
+        
+        if not character:
+            return JSONResponse({"error": "Character not found"}, status_code=404)
+        
+        print(f"Successfully updated character from PDF: {character.get('name', 'Unknown')}")
+        return JSONResponse(character)
+        
+    except ValueError as e:
+        print(f"ValueError updating character from PDF: {e}")
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        print(f"Error updating character from PDF: {e}")
+        traceback.print_exc()
+        return JSONResponse({"error": f"Failed to update character from PDF: {str(e)}"}, status_code=500)
+
+
 async def get_characters_endpoint(request):
     """GET /api/characters - List all characters"""
     try:
@@ -561,9 +627,11 @@ routes = [
     # Character management
     Route('/api/characters', get_characters_endpoint, methods=["GET"]),
     Route('/api/characters/import/dndbeyond', import_dndbeyond_character_endpoint, methods=["POST"]),
+    Route('/api/characters/import/pdf', import_pdf_character_endpoint, methods=["POST"]),
     Route('/api/characters/{character_id}', get_character_endpoint, methods=["GET"]),
     Route('/api/characters/{character_id}', delete_character_endpoint, methods=["DELETE"]),
     Route('/api/characters/{character_id}/refresh', refresh_character_endpoint, methods=["POST"]),
+    Route('/api/characters/{character_id}/update-pdf', update_character_from_pdf_endpoint, methods=["POST"]),
     Route('/api/characters/{character_id}/json', get_character_full_json_endpoint, methods=["GET"]),
     
     # WebSocket for real-time chat

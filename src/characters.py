@@ -162,6 +162,123 @@ async def import_character_from_dndbeyond(
     }
 
 
+async def import_character_from_pdf(
+    pdf_content: bytes,
+    campaign_id: Optional[str] = None
+) -> dict:
+    """
+    Import a character from a PDF file and store in database.
+    
+    Args:
+        pdf_content: Raw PDF file bytes
+        campaign_id: Optional campaign to associate the character with
+        
+    Returns:
+        The imported character record with display info
+    """
+    from src.pdf_parser import parse_pdf_to_dndbeyond_json
+    
+    character_json = parse_pdf_to_dndbeyond_json(pdf_content)
+    
+    char_id = generate_character_id()
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO characters (id, dndbeyond_id, campaign_id, character_json)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id, dndbeyond_id, campaign_id, created_at
+                """,
+                (char_id, None, campaign_id, json.dumps(character_json))
+            )
+            result = cur.fetchone()
+            conn.commit()
+    finally:
+        conn.close()
+    
+    if not result:
+        raise RuntimeError("Failed to insert character into database")
+    
+    mirror_path = Path("mirror/characters") / char_id
+    mirror_path.mkdir(parents=True, exist_ok=True)
+    (mirror_path / "memories.txt").write_text("")
+    
+    display_info = extract_display_info(character_json)
+    
+    return {
+        "id": result[0],
+        "dndbeyond_id": result[1],
+        "campaign_id": result[2],
+        "created_at": result[3].isoformat() if result[3] else None,
+        "source": "pdf",
+        **display_info
+    }
+
+
+async def update_character_from_pdf(
+    character_id: str,
+    pdf_content: bytes
+) -> Optional[dict]:
+    """
+    Update an existing character's data from a PDF file.
+    
+    Args:
+        character_id: The character's internal ID
+        pdf_content: Raw PDF file bytes
+        
+    Returns:
+        The updated character record with display info, or None if not found
+    """
+    from src.pdf_parser import parse_pdf_to_dndbeyond_json
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM characters WHERE id = %s",
+                (character_id,)
+            )
+            if not cur.fetchone():
+                return None
+    finally:
+        conn.close()
+    
+    character_json = parse_pdf_to_dndbeyond_json(pdf_content)
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE characters 
+                SET character_json = %s, dndbeyond_id = NULL, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                RETURNING id, dndbeyond_id, campaign_id, created_at
+                """,
+                (json.dumps(character_json), character_id)
+            )
+            result = cur.fetchone()
+            conn.commit()
+    finally:
+        conn.close()
+    
+    if not result:
+        return None
+    
+    display_info = extract_display_info(character_json)
+    
+    return {
+        "id": result[0],
+        "dndbeyond_id": result[1],
+        "campaign_id": result[2],
+        "created_at": result[3].isoformat() if result[3] else None,
+        "source": "pdf",
+        **display_info
+    }
+
+
 async def get_character(character_id: str) -> Optional[dict]:
     """
     Get a character by ID.
@@ -416,5 +533,122 @@ async def refresh_character_from_dndbeyond(character_id: str) -> Optional[dict]:
         "campaign_id": result[2],
         "created_at": result[3].isoformat() if result[3] else None,
         "source": "dndbeyond",
+        **display_info
+    }
+
+
+async def import_character_from_pdf(
+    pdf_content: bytes,
+    campaign_id: Optional[str] = None
+) -> dict:
+    """
+    Import a character from a PDF file and store in database.
+    
+    Args:
+        pdf_content: Raw PDF file bytes
+        campaign_id: Optional campaign to associate the character with
+        
+    Returns:
+        The imported character record with display info
+    """
+    from src.pdf_parser import parse_pdf_to_dndbeyond_json
+    
+    character_json = parse_pdf_to_dndbeyond_json(pdf_content)
+    
+    char_id = generate_character_id()
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO characters (id, dndbeyond_id, campaign_id, character_json)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id, dndbeyond_id, campaign_id, created_at
+                """,
+                (char_id, None, campaign_id, json.dumps(character_json))
+            )
+            result = cur.fetchone()
+            conn.commit()
+    finally:
+        conn.close()
+    
+    if not result:
+        raise RuntimeError("Failed to insert character into database")
+    
+    mirror_path = Path("mirror/characters") / char_id
+    mirror_path.mkdir(parents=True, exist_ok=True)
+    (mirror_path / "memories.txt").write_text("")
+    
+    display_info = extract_display_info(character_json)
+    
+    return {
+        "id": result[0],
+        "dndbeyond_id": result[1],
+        "campaign_id": result[2],
+        "created_at": result[3].isoformat() if result[3] else None,
+        "source": "pdf",
+        **display_info
+    }
+
+
+async def update_character_from_pdf(
+    character_id: str,
+    pdf_content: bytes
+) -> Optional[dict]:
+    """
+    Update an existing character's data from a PDF file.
+    
+    Args:
+        character_id: The character's internal ID
+        pdf_content: Raw PDF file bytes
+        
+    Returns:
+        The updated character record with display info, or None if not found
+    """
+    from src.pdf_parser import parse_pdf_to_dndbeyond_json
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM characters WHERE id = %s",
+                (character_id,)
+            )
+            if not cur.fetchone():
+                return None
+    finally:
+        conn.close()
+    
+    character_json = parse_pdf_to_dndbeyond_json(pdf_content)
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE characters 
+                SET character_json = %s, dndbeyond_id = NULL, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                RETURNING id, dndbeyond_id, campaign_id, created_at
+                """,
+                (json.dumps(character_json), character_id)
+            )
+            result = cur.fetchone()
+            conn.commit()
+    finally:
+        conn.close()
+    
+    if not result:
+        return None
+    
+    display_info = extract_display_info(character_json)
+    
+    return {
+        "id": result[0],
+        "dndbeyond_id": result[1],
+        "campaign_id": result[2],
+        "created_at": result[3].isoformat() if result[3] else None,
+        "source": "pdf",
         **display_info
     }
