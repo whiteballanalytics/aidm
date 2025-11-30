@@ -2,7 +2,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["cacert", "cargo", "gitFull", "glibcLocales", "libiconv", "libxcrypt", "rustc"]
+packages = ["cacert", "cargo", "freetype", "gitFull", "glibcLocales", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "rustc", "tcl", "tk", "zlib"]
 
 [agent]
 expertMode = true
@@ -42,3 +42,8 @@ externalPort = 3000
 [deployment]
 deploymentTarget = "vm"
 run = ["python", "run_server.py"]
+
+[userenv]
+
+[userenv.shared]
+USE_MULTI_AGENT_DM = "true"

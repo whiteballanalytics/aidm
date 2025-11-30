@@ -4,14 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎲 D&D AI Dungeon Master</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=20251123-cover-fix">
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>🎲 D&D AI Dungeon Master</h1>
-            <p>AI-Powered Dungeons & Dragons Experience</p>
+            <img src="/static/images/ui/banner_left_DungeonDelver.png" alt="" class="banner-left">
+            <div class="header-content">
+                <h1>D&D AI Dungeon Master</h1>
+                <p>AI-Powered Dungeons & Dragons Experience</p>
+            </div>
+            <img src="/static/images/ui/banner_right_DungeonDelver.png" alt="" class="banner-right">
         </div>
 
         <!-- Navigation Tabs -->
@@ -137,9 +141,11 @@
                 <h2>Play Mode</h2>
                 <p>Interactive D&D gameplay with your AI Dungeon Master.</p>
 
-                <div id="current-play-info" class="card">
-                    <p>Select a session from the Session Manager to start playing.</p>
-                    <button class="btn btn-secondary" onclick="app.showTab('sessions')">Back to Sessions</button>
+                <div class="card-grid">
+                    <div id="current-play-info" class="card">
+                        <p>Select a session from the Session Manager to start playing.</p>
+                        <button class="btn btn-secondary" onclick="app.showTab('sessions')">Back to Sessions</button>
+                    </div>
                 </div>
 
                 <div class="chat-container">
@@ -178,6 +184,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
-    <script src="/static/js/app.js?v=20250921-2015"></script>
+    <script src="/static/js/app.js?v=20251123-readaloud-fix"></script>
 </body>
 </html>

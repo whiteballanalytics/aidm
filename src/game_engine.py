@@ -201,11 +201,97 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
         model="gpt-5"
     )
 
-    # The turn-by-turn DM agent
+    # The turn-by-turn DM agent (legacy single-agent)
     dm_agent = Agent(
         name="The Dungeon Master",
         instructions=dm_system_prompt,
-        tools=[search_lore, search_memory, roll]
+        tools=[search_lore, search_memory, roll],
+        model="gpt-4o"
+    )
+    
+    # ------------------------------------------------------------------------------
+    # -- MULTI-AGENT SYSTEM (new router-based architecture)
+    # ------------------------------------------------------------------------------
+    
+    # Load specialized agent prompts
+    router_prompt = load_prompt("system", "dm_router.md")
+    narrative_short_prompt = load_prompt("system", "dm_narrative_short.md")
+    narrative_long_prompt = load_prompt("system", "dm_narrative_long.md")
+    qa_situation_prompt = load_prompt("system", "dm_qa_situation.md")
+    qa_rules_prompt = load_prompt("system", "dm_qa_rules.md")
+    npc_dialogue_prompt = load_prompt("system", "dm_npc_dialogue.md")
+    combat_designer_prompt = load_prompt("system", "dm_combat_designer.md")
+    travel_prompt = load_prompt("system", "dm_travel.md")
+    gameplay_prompt = load_prompt("system", "dm_gameplay.md")
+    
+    # Router agent (no tools, just classification)
+    router_agent = Agent(
+        name="DM Router",
+        instructions=router_prompt,
+        tools=[],
+        model="gpt-4o-mini"
+    )
+    
+    # Narrative agents (full tool access)
+    narrative_short_agent = Agent(
+        name="DM Narrative (Short)",
+        instructions=narrative_short_prompt,
+        tools=[search_lore, search_memory, roll],
+        model="gpt-4o-mini"
+    )
+    
+    narrative_long_agent = Agent(
+        name="DM Narrative (Long)",
+        instructions=narrative_long_prompt,
+        tools=[search_lore, search_memory, roll],
+        model="gpt-4o-mini"
+    )
+    
+    # Q&A agents (limited tools)
+    qa_situation_agent = Agent(
+        name="DM Q&A (Situation)",
+        instructions=qa_situation_prompt,
+        tools=[search_memory],
+        model="gpt-4o-mini"
+    )
+    
+    qa_rules_agent = Agent(
+        name="DM Q&A (Rules)",
+        instructions=qa_rules_prompt,
+        tools=[search_lore],
+        model="gpt-4o-mini"
+    )
+    
+    # NPC Dialogue agent (focused on NPC interactions and dialogue)
+    npc_dialogue_agent = Agent(
+        name="DM NPC Dialogue",
+        instructions=npc_dialogue_prompt,
+        tools=[search_lore, search_memory, roll],
+        model="gpt-4o-mini"
+    )
+    
+    # Combat Designer agent (designs and facilitates combat encounters)
+    combat_designer_agent = Agent(
+        name="DM Combat Designer",
+        instructions=combat_designer_prompt,
+        tools=[search_lore, search_memory, roll],
+        model="gpt-4o-mini"
+    )
+    
+    # Travel agent (full tool access)
+    travel_agent = Agent(
+        name="DM Travel",
+        instructions=travel_prompt,
+        tools=[search_lore, search_memory, roll],
+        model="gpt-4o-mini"
+    )
+    
+    # Gameplay agent (full tool access, handles all dice rolling)
+    gameplay_agent = Agent(
+        name="DM Gameplay",
+        instructions=gameplay_prompt,
+        tools=[search_lore, search_memory, roll],
+        model="gpt-4o-mini"
     )
     
     return {
@@ -214,7 +300,17 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
         "dm_new_session_agent": dm_new_session_agent,
         "dm_post_session_agent": dm_post_session_agent,
         "dm_agent": dm_agent,
-        "memory_search": mem
+        "memory_search": mem,
+        # Multi-agent system
+        "router": router_agent,
+        "narrative_short": narrative_short_agent,
+        "narrative_long": narrative_long_agent,
+        "qa_situation": qa_situation_agent,
+        "qa_rules": qa_rules_agent,
+        "npc_dialogue": npc_dialogue_agent,
+        "combat_designer": combat_designer_agent,
+        "travel": travel_agent,
+        "gameplay": gameplay_agent
     }
 
 # Campaign management functions
@@ -587,6 +683,7 @@ async def close_session(campaign_id: str, session_id: str) -> dict:
 # Game play functions
 async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id: str = "web_user") -> dict:
     """Process a single turn of gameplay."""
+
     # Load session and campaign
     session = await load_session(campaign_id, session_id)
     if not session:
@@ -600,6 +697,9 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
         raise ValueError(f"Campaign {campaign_id} not found")
     
     world_collection = campaign.get("world_collection", "SwordCoast")
+    
+    # Check if multi-agent DM is enabled
+    use_multi_agent = os.getenv("USE_MULTI_AGENT_DM", "false").lower() == "true"
     
     # Set up agents and game state
     agents = setup_agents_for_campaign(campaign_id, world_collection)
@@ -645,25 +745,65 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
     context = dm_context_blob(session_plan, scene_state, recent_recap)
     dm_input = f"{context}\nPlayer: {user_input}"
     
-    # Get DM response
-    try:
-        result = await Runner.run(dm_agent, dm_input, hooks=LocalRunLogger())
-    except Exception as e:
-        raise Exception(f"Error getting DM response: {e}")
-    
-    dm_response_raw = (
-        getattr(result, "output_text", None)
-        or getattr(result, "content", None)
-        or str(result)
-    )
-    
-    # Parse DM response and updates
-    # First extract narrative from RunResult format if needed
-    dm_response_clean = extract_narrative_from_runresult(dm_response_raw)
-    
-    # Then strip any JSON blocks
-    update_payload = extract_update_payload(dm_response_clean) or {}
-    dm_response = strip_json_block(dm_response_clean)
+    # Get DM response - use multi-agent orchestrator or legacy single agent
+    if use_multi_agent:
+        # Import orchestrator (lazy import to avoid circular dependencies)
+        from src.orchestration.turn_router import orchestrate_turn
+        
+        # Build session context for orchestrator
+        session_context = {
+            "session_plan": session_plan,
+            "scene_state": scene_state,
+            "recent_recap": recent_recap,
+            "dm_input": dm_input
+        }
+        
+        # Route through multi-agent orchestrator
+        try:
+            orchestrator_result = await orchestrate_turn(
+                campaign_id=campaign_id,
+                session_id=session_id,
+                user_input=user_input,
+                user_id=user_id,
+                agents=agents,
+                session_context=session_context
+            )
+            
+            dm_response = orchestrator_result["dm_response"]
+            update_payload = orchestrator_result["update_payload"]
+            
+            # Log which agent was used
+            jl_write({
+                "event": "multi_agent_routing",
+                "intent": orchestrator_result.get("intent_used"),
+                "note": orchestrator_result.get("routing_note"),
+                "campaign_id": campaign_id,
+                "session_id": session_id,
+                "ts": time.time()
+            })
+            
+        except Exception as e:
+            raise Exception(f"Error from multi-agent orchestrator: {e}")
+    else:
+        # Legacy single-agent path
+        try:
+            result = await Runner.run(dm_agent, dm_input, hooks=LocalRunLogger())
+        except Exception as e:
+            raise Exception(f"Error getting DM response: {e}")
+        
+        dm_response_raw = (
+            getattr(result, "output_text", None)
+            or getattr(result, "content", None)
+            or str(result)
+        )
+        
+        # Parse DM response and updates
+        # First extract narrative from RunResult format if needed
+        dm_response_clean = extract_narrative_from_runresult(dm_response_raw)
+        
+        # Then strip any JSON blocks
+        update_payload = extract_update_payload(dm_response_clean) or {}
+        dm_response = strip_json_block(dm_response_clean)
     
     # Update scene state if provided
     scene_patch = update_payload.get("scene_state_patch", {})

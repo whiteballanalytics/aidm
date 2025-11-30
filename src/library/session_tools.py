@@ -104,19 +104,19 @@ Intended Beats:
         
         review += f"Session Summary (from gameplay):\n{summary}\n\n"
         
-        if chat_history:
-            review += f"Turn History ({len(chat_history)} turns):\n"
-            for turn in chat_history[:5]:  # Show first 5 turns
-                turn_num = turn.get("turn_number", "?")
-                user_input = turn.get("user_input", "")
-                turn_summary = turn.get("turn_summary", "")
-                review += f"  Turn {turn_num}: {user_input}\n"
-                if turn_summary:
-                    review += f"    Summary: {turn_summary}\n"
-            if len(chat_history) > 5:
-                review += f"  ... (and {len(chat_history) - 5} more turns)\n"
-        else:
-            review += "Turn History: No turns played yet\n"
+        # if chat_history:
+        #     review += f"Turn History ({len(chat_history)} turns):\n"
+        #     for turn in chat_history[:5]:  # Show first 5 turns
+        #         turn_num = turn.get("turn_number", "?")
+        #         user_input = turn.get("user_input", "")
+        #         turn_summary = turn.get("turn_summary", "")
+        #         review += f"  Turn {turn_num}: {user_input}\n"
+        #         if turn_summary:
+        #             review += f"    Summary: {turn_summary}\n"
+        #     if len(chat_history) > 5:
+        #         review += f"  ... (and {len(chat_history) - 5} more turns)\n"
+        # else:
+        #     review += "Turn History: No turns played yet\n"
         
         review += "\n=== END SESSION REVIEW ===\n"
         
