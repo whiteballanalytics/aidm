@@ -1108,14 +1108,17 @@ class DnDApp {
         this.showThemedConfirm(
             'Are you sure you want to close this session? It cannot be reopened.',
             async () => {
+                this.showLoading('Generating post-session analysis... this can take a few minutes');
                 try {
                     await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${sessionId}/close`, {
                         method: 'POST'
                     });
                     
+                    this.hideLoading();
                     this.showAlert('Session closed successfully!', 'success');
                     await this.refreshSessions();
                 } catch (error) {
+                    this.hideLoading();
                     console.error('Failed to close session:', error);
                     this.showAlert('Failed to close session', 'error');
                 }
