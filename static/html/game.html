@@ -203,6 +203,21 @@
         </div>
     </div>
 
+    <!-- Party Management Panel -->
+    <div id="party-overlay" class="party-overlay"></div>
+    <div id="party-panel" class="party-panel">
+        <div class="party-panel-header">
+            <h3>👥 Party</h3>
+            <button class="party-close-btn" onclick="app.togglePartyPanel()">&times;</button>
+        </div>
+        <div class="party-panel-content">
+            <button class="add-character-btn" onclick="app.showAddCharacterMenu()">+ Add Character</button>
+            <div id="character-list" class="character-cards-grid">
+                <!-- Character cards will be rendered here -->
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
     <script src="/static/js/voice_client.js?v=20251130-tts"></script>
     <script src="/static/js/app.js?v=20251130-tts"></script>
