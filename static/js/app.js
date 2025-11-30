@@ -320,13 +320,22 @@ class DnDApp {
             });
             
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // Try to get the error message from the response body
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) {
+                        errorMessage = errorData.error;
+                    }
+                } catch (e) {
+                    // Response wasn't JSON, use default message
+                }
+                throw new Error(errorMessage);
             }
             
             return await response.json();
         } catch (error) {
             console.error('API Error:', error);
-            this.showAlert('Error: ' + error.message, 'error');
             throw error;
         }
     }
