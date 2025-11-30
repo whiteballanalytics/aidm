@@ -7,6 +7,28 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 
 ## Recent Changes
 
+### November 30, 2025 - Character Import from D&D Beyond (Database Integration)
+- ✅ PostgreSQL database provisioned with `characters` table
+  - Columns: `id` (serial), `dndbeyond_id` (varchar), `campaign_id` (varchar), `character_json` (JSONB), `created_at` (timestamp)
+  - Full D&D Beyond JSON stored in JSONB column - no data transformation needed
+- ✅ Backend endpoints for character management:
+  - `POST /api/characters/import/dndbeyond` - Imports character by ID from D&D Beyond API
+  - `GET /api/characters` - Lists all characters with optional `?campaign_id=` filter
+  - Extracts display values (name, race, class, level, HP) on-the-fly from stored JSON
+- ✅ Character memory file structure: `mirror/characters/{id}/memories.txt`
+  - Created automatically on import
+  - Follows campaign memory pattern for session-specific notes
+- ✅ Frontend fully connected to database:
+  - `loadCharacters()` fetches from API on initialization
+  - `importFromDDB()` validates input (accepts full URLs or numeric IDs)
+  - Character cards display data extracted from stored JSON
+  - Removed all hardcoded test characters
+
+**D&D Beyond API:**
+- Public characters: `GET https://character-service.dndbeyond.com/character/v5/character/{id}`
+- No authentication required for public characters
+- Returns full character data: stats, race, class, spells, inventory, proficiencies, backstory
+
 ### November 30, 2025 - Party Management UI (Character Sheets)
 - ✅ Added "Manage Characters" button to Play Mode header (top-right corner)
   - Opens right-side slide-over panel for character management
@@ -22,18 +44,7 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
   - Characters cleared when new session loads
 - ✅ Add Character flow with two options:
   - **Import from D&D Beyond**: Paste URL or character ID
-  - **Upload PDF**: Select PDF character sheet
-  - Both have dummy handlers (backend integration pending)
-- ✅ Hardcoded 3 test characters for UX testing:
-  - Arador Callidux (Dragonborn Wizard 3, from D&D Beyond)
-  - Thorn Ironforge (Dwarf Fighter 4, manual entry)
-  - Lyra Moonwhisper (Half-Elf Bard 3, from PDF)
-
-**D&D Beyond API Discovery:**
-- Public characters accessible via `GET https://character-service.dndbeyond.com/character/v5/character/{id}`
-- No authentication required for public characters
-- Returns full character data: stats, race, class, spells, inventory, proficiencies, backstory
-- See investigation notes in chat history for full field mapping
+  - **Upload PDF**: Select PDF character sheet (pending backend implementation)
 
 ### November 30, 2025 - Voice Output (TTS) Implementation (Phase 2)
 - ✅ Implemented OpenAI TTS provider (`src/voice/tts/openai_tts.py`)
