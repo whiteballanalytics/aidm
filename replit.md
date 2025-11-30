@@ -7,13 +7,32 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 
 ## Recent Changes
 
+### November 30, 2025 - Character Management (Delete & Refresh)
+- ✅ Added delete and refresh buttons to character cards
+  - Small icon-only buttons (pencil/trash) in top-right of cards
+  - Buttons appear on hover for clean aesthetic
+  - Delete button shows red on hover for clear action indication
+- ✅ Delete character flow:
+  - Confirmation modal before deletion
+  - Removes character from database and updates UI
+  - `DELETE /api/characters/{id}` endpoint
+- ✅ Refresh character from D&D Beyond:
+  - `POST /api/characters/{id}/refresh` fetches latest data from D&D Beyond
+  - Updates stored JSON and refreshes display values
+  - Shows error message if character is private (403) or not found (404)
+- ✅ Update modal with options:
+  - "Update from D&D Beyond" - refreshes character data
+  - "Upload PDF" - placeholder for future PDF import
+
 ### November 30, 2025 - Character Import from D&D Beyond (Database Integration)
 - ✅ PostgreSQL database provisioned with `characters` table
-  - Columns: `id` (serial), `dndbeyond_id` (varchar), `campaign_id` (varchar), `character_json` (JSONB), `created_at` (timestamp)
+  - Columns: `id` (serial), `dndbeyond_id` (varchar), `campaign_id` (varchar), `character_json` (JSONB), `created_at`, `updated_at` (timestamps)
   - Full D&D Beyond JSON stored in JSONB column - no data transformation needed
 - ✅ Backend endpoints for character management:
   - `POST /api/characters/import/dndbeyond` - Imports character by ID from D&D Beyond API
   - `GET /api/characters` - Lists all characters with optional `?campaign_id=` filter
+  - `DELETE /api/characters/{id}` - Deletes character from database
+  - `POST /api/characters/{id}/refresh` - Refreshes character data from D&D Beyond
   - Extracts display values (name, race, class, level, HP) on-the-fly from stored JSON
 - ✅ Character memory file structure: `mirror/characters/{id}/memories.txt`
   - Created automatically on import
@@ -22,12 +41,13 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
   - `loadCharacters()` fetches from API on initialization
   - `importFromDDB()` validates input (accepts full URLs or numeric IDs)
   - Character cards display data extracted from stored JSON
-  - Removed all hardcoded test characters
+  - Delete and refresh actions with confirmation modals
 
 **D&D Beyond API:**
 - Public characters: `GET https://character-service.dndbeyond.com/character/v5/character/{id}`
 - No authentication required for public characters
 - Returns full character data: stats, race, class, spells, inventory, proficiencies, backstory
+- Note: Characters must be set to "Public" in D&D Beyond settings to be importable
 
 ### November 30, 2025 - Party Management UI (Character Sheets)
 - ✅ Added "Manage Characters" button to Play Mode header (top-right corner)
