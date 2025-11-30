@@ -7,5 +7,6 @@ Available providers:
 """
 
 from .base import TTSProvider, VoiceInfo, TTSOptions
+from .openai_tts import OpenAITTSProvider
 
-__all__ = ["TTSProvider", "VoiceInfo", "TTSOptions"]
+__all__ = ["TTSProvider", "VoiceInfo", "TTSOptions", "OpenAITTSProvider"]

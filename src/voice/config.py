@@ -24,20 +24,28 @@ class VoiceSettings:
         }
 
 
+SPEAKABLE_INTENTS = {
+    "narrative_short",
+    "narrative_long",
+    "qa_situation",
+    "travel",
+}
+
+
 @dataclass
 class VoiceConfig:
     """Complete voice configuration."""
     
-    default: VoiceSettings = field(default_factory=lambda: VoiceSettings())
+    default: VoiceSettings = field(default_factory=lambda: VoiceSettings(voice_id="fable"))
     
     intents: Dict[str, VoiceSettings] = field(default_factory=lambda: {
-        "narrative_short": VoiceSettings(voice_id="onyx"),
-        "narrative_long": VoiceSettings(voice_id="onyx"),
-        "npc_dialogue": VoiceSettings(provider="openai", voice_id="fable"),
-        "qa_rules": VoiceSettings(voice_id="nova", speed=1.1),
-        "qa_situation": VoiceSettings(voice_id="onyx"),
-        "travel": VoiceSettings(voice_id="onyx"),
-        "gameplay": VoiceSettings(voice_id="echo")
+        "narrative_short": VoiceSettings(voice_id="fable"),
+        "narrative_long": VoiceSettings(voice_id="fable"),
+        "npc_dialogue": VoiceSettings(voice_id="fable"),
+        "qa_rules": VoiceSettings(voice_id="fable", speed=1.1),
+        "qa_situation": VoiceSettings(voice_id="fable"),
+        "travel": VoiceSettings(voice_id="fable"),
+        "gameplay": VoiceSettings(voice_id="fable")
     })
     
     npcs: Dict[str, VoiceSettings] = field(default_factory=dict)
@@ -119,3 +127,10 @@ def get_tts_provider() -> str:
 def get_stt_fallback() -> str:
     """Get the configured STT fallback provider."""
     return os.getenv("VOICE_STT_FALLBACK", "openai_realtime")
+
+
+def is_intent_speakable(intent: Optional[str]) -> bool:
+    """Check if the given intent should trigger TTS."""
+    if not intent:
+        return False
+    return intent in SPEAKABLE_INTENTS

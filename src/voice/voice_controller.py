@@ -190,7 +190,11 @@ class VoiceController:
         voice_settings = self._config.get_voice(intent=intent, speaker=hints.speaker)
         
         provider = self._tts_providers.get(voice_settings.provider)
-        if not provider or not provider.is_available():
+        if not provider:
+            logger.error(f"TTS provider not found: {voice_settings.provider}. Registered: {list(self._tts_providers.keys())}")
+            return None
+        if not provider.is_available():
+            logger.error(f"TTS provider not available: {voice_settings.provider}")
             return None
         
         options = TTSOptions(speed=voice_settings.speed)

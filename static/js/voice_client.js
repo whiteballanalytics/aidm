@@ -5,6 +5,13 @@
  * See docs/VOICE_ARCHITECTURE.md for full architectural documentation.
  */
 
+const SPEAKABLE_INTENTS = new Set([
+    'narrative_short',
+    'narrative_long',
+    'qa_situation',
+    'travel',
+]);
+
 class VoiceClient {
     constructor(chatApp) {
         this.chatApp = chatApp;
@@ -13,8 +20,26 @@ class VoiceClient {
         this.isSupported = this._checkSupport();
         this.audioContext = null;
         this.currentAudio = null;
+        this.ttsEnabled = true;
         
         this._initializeRecognition();
+    }
+    
+    /**
+     * Check if TTS should play for a given intent
+     */
+    shouldSpeak(intent) {
+        return this.ttsEnabled && intent && SPEAKABLE_INTENTS.has(intent);
+    }
+    
+    /**
+     * Enable or disable TTS playback
+     */
+    setTTSEnabled(enabled) {
+        this.ttsEnabled = enabled;
+        if (!enabled) {
+            this.stopPlayback();
+        }
     }
     
     /**
@@ -214,6 +239,51 @@ class VoiceClient {
     }
     
     /**
+     * Speak a DM response using TTS
+     * Requests audio from backend and plays it
+     */
+    async speakDMResponse(text, intent) {
+        if (!this.shouldSpeak(intent)) {
+            return;
+        }
+        
+        if (!text || text.trim().length === 0) {
+            return;
+        }
+        
+        this.stopPlayback();
+        
+        try {
+            console.log(`Requesting TTS for intent: ${intent}`);
+            
+            const response = await fetch('/api/tts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: text,
+                    intent: intent
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.warn('TTS request failed:', errorData.error || response.statusText);
+                return;
+            }
+            
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            
+            await this.playResponse(audioUrl, { cleanup: true });
+            
+        } catch (error) {
+            console.error('Failed to get TTS audio:', error);
+        }
+    }
+    
+    /**
      * Play TTS audio for a DM response
      */
     async playResponse(audioUrl, options = {}) {
@@ -231,6 +301,8 @@ class VoiceClient {
             audio.volume = options.volume || 1.0;
             audio.playbackRate = options.speed || 1.0;
             
+            const cleanupUrl = options.cleanup ? audioUrl : null;
+            
             audio.onplay = () => {
                 this._updateUI('speaking');
             };
@@ -238,12 +310,18 @@ class VoiceClient {
             audio.onended = () => {
                 this.currentAudio = null;
                 this._updateUI('idle');
+                if (cleanupUrl) {
+                    URL.revokeObjectURL(cleanupUrl);
+                }
             };
             
             audio.onerror = (error) => {
                 console.error('Audio playback error:', error);
                 this.currentAudio = null;
                 this._updateUI('idle');
+                if (cleanupUrl) {
+                    URL.revokeObjectURL(cleanupUrl);
+                }
             };
             
             await audio.play();

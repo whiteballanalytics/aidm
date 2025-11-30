@@ -1327,6 +1327,10 @@ class DnDApp {
                 if (data.turn_number) {
                     this.currentSession.turn_number = data.turn_number;
                 }
+                // Trigger TTS for speakable intents
+                if (this.voiceClient) {
+                    this.voiceClient.speakDMResponse(data.dm_response, data.intent_used);
+                }
             } else if (data.type === 'dm_thinking') {
                 this.addChatMessage('system', data.message);
             } else if (data.type === 'error') {
@@ -1396,6 +1400,11 @@ class DnDApp {
             
             if (result.turn_number) {
                 this.currentSession.turn_number = result.turn_number;
+            }
+            
+            // Trigger TTS for speakable intents
+            if (this.voiceClient) {
+                this.voiceClient.speakDMResponse(result.dm_response, result.intent_used);
             }
         } catch (error) {
             this.addChatMessage('system', 'Failed to send message. Please try again.');

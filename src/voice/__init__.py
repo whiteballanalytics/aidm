@@ -7,11 +7,25 @@ separated from the core game engine logic.
 See docs/VOICE_ARCHITECTURE.md for full architectural documentation.
 """
 
-from .voice_controller import VoiceController
-from .config import VoiceConfig, get_voice_config
+from .voice_controller import VoiceController, get_voice_controller
+from .config import (
+    VoiceConfig,
+    VoiceSettings,
+    get_voice_config,
+    is_tts_enabled,
+    is_intent_speakable,
+    SPEAKABLE_INTENTS,
+)
+from .tts import OpenAITTSProvider
 
 __all__ = [
     "VoiceController",
-    "VoiceConfig", 
-    "get_voice_config"
+    "get_voice_controller",
+    "VoiceConfig",
+    "VoiceSettings",
+    "get_voice_config",
+    "is_tts_enabled",
+    "is_intent_speakable",
+    "SPEAKABLE_INTENTS",
+    "OpenAITTSProvider",
 ]

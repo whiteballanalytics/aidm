@@ -32,6 +32,25 @@ from game_engine import (
 from main import strip_json_block
 from game_engine import extract_narrative_from_runresult
 
+# Import voice module
+from voice import (
+    get_voice_controller,
+    OpenAITTSProvider,
+    is_tts_enabled,
+    is_intent_speakable,
+)
+
+
+def initialize_voice():
+    """Initialize voice controller with TTS providers."""
+    controller = get_voice_controller()
+    openai_provider = OpenAITTSProvider(model="tts-1")
+    controller.register_tts_provider("openai", openai_provider)
+    return controller
+
+
+voice_controller = initialize_voice()
+
 # WebSocket connection manager
 class ConnectionManager:
     def __init__(self):
@@ -323,6 +342,52 @@ async def homepage(request):
         """
         return HTMLResponse(html)
 
+async def tts_endpoint(request):
+    """POST /api/tts - Generate speech from text"""
+    try:
+        if not is_tts_enabled():
+            return JSONResponse(
+                {"error": "TTS is not enabled. Set VOICE_TTS_ENABLED=true"},
+                status_code=503
+            )
+        
+        data = await request.json()
+        text = data.get("text", "")
+        intent = data.get("intent")
+        
+        if not text:
+            return JSONResponse({"error": "Text is required"}, status_code=400)
+        
+        if not is_intent_speakable(intent):
+            return JSONResponse(
+                {"error": f"Intent '{intent}' is not configured for TTS"},
+                status_code=400
+            )
+        
+        audio_data = await voice_controller.synthesize_full(
+            text=text,
+            intent=intent
+        )
+        
+        if not audio_data:
+            return JSONResponse(
+                {"error": "Failed to synthesize speech"},
+                status_code=500
+            )
+        
+        return Response(
+            content=audio_data,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "inline",
+                "Cache-Control": "no-cache"
+            }
+        )
+        
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 async def status(request):
     """API endpoint to check system status"""
     # Check if required environment variables are set
@@ -361,6 +426,9 @@ routes = [
     
     # Game play
     Route('/api/campaigns/{campaign_id}/sessions/{session_id}/turn', play_turn_endpoint, methods=["POST"]),
+    
+    # Voice/TTS
+    Route('/api/tts', tts_endpoint, methods=["POST"]),
     
     # WebSocket for real-time chat
     WebSocketRoute('/ws/{campaign_id}/{session_id}', websocket_endpoint),

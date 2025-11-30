@@ -11,18 +11,53 @@ This document describes the architectural decisions and module structure for the
 - Frontend VoiceClient with Web Speech API STT
 - Microphone button UI
 
-**Phase 2 (Not Started):** Provider implementations
-- OpenAI TTS concrete provider
-- ElevenLabs TTS concrete provider
-- OpenAI Realtime STT fallback provider
+**Phase 2 (Complete):** Provider implementations
+- OpenAI TTS concrete provider (using `tts-1` model, `fable` voice)
+- `/api/tts` endpoint for text-to-speech requests
+- Speakable intents: narrative_short, narrative_long, qa_situation, travel
+- Frontend audio playback with speaking state UI
 - Provider registration/wiring in backend
 
-**Phase 3 (Not Started):** Backend integration
-- `/api/voice/tts/{response_id}` endpoint
-- WebSocket voice directive delivery
+**Phase 3 (Not Started):** Advanced features
+- ElevenLabs TTS provider (for character voices)
+- OpenAI Realtime STT fallback provider
+- NPC-specific voice selection
 - Voice hints integration with play_turn response
 
-To enable TTS, set `VOICE_TTS_ENABLED=true` and implement a concrete provider.
+To enable TTS, set `VOICE_TTS_ENABLED=true` environment variable.
+
+### Future Upgrade: gpt-4o-mini-tts
+
+OpenAI's newer `gpt-4o-mini-tts` model supports **instructable speech** - the ability to control
+*how* the text is spoken, not just what is spoken. This enables:
+
+- Emotional modulation: "Speak dramatically for tense moments"
+- Pacing control: "Speak slowly and ominously"
+- Character voices: "Speak with a gruff, dwarven accent"
+
+**Upgrade path:**
+1. Update `OpenAITTSProvider` to accept model as constructor parameter (already done)
+2. Add emotion/style hints to `VoiceHints` dataclass
+3. Modify `synthesize()` to include instruction prompts when using gpt-4o-mini-tts
+4. Update voice config to specify per-intent speaking instructions
+
+Example future config:
+```python
+VOICE_CONFIG = {
+    "intents": {
+        "narrative_long": {
+            "voice_id": "fable",
+            "model": "gpt-4o-mini-tts",
+            "instruction": "Speak with dramatic emphasis, pause for effect"
+        },
+        "travel": {
+            "voice_id": "fable", 
+            "model": "gpt-4o-mini-tts",
+            "instruction": "Speak calmly and reflectively, as if describing a peaceful journey"
+        }
+    }
+}
+```
 
 ## Design Goals
 

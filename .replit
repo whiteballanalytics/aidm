@@ -47,3 +47,4 @@ run = ["python", "run_server.py"]
 
 [userenv.shared]
 USE_MULTI_AGENT_DM = "true"
+VOICE_TTS_ENABLED = "true"
