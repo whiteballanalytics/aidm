@@ -746,6 +746,8 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
     dm_input = f"{context}\nPlayer: {user_input}"
     
     # Get DM response - use multi-agent orchestrator or legacy single agent
+    intent_used = None  # Track which agent was used (for frontend display)
+    
     if use_multi_agent:
         # Import orchestrator (lazy import to avoid circular dependencies)
         from src.orchestration.turn_router import orchestrate_turn
@@ -771,11 +773,12 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
             
             dm_response = orchestrator_result["dm_response"]
             update_payload = orchestrator_result["update_payload"]
+            intent_used = orchestrator_result.get("intent_used")
             
             # Log which agent was used
             jl_write({
                 "event": "multi_agent_routing",
-                "intent": orchestrator_result.get("intent_used"),
+                "intent": intent_used,
                 "note": orchestrator_result.get("routing_note"),
                 "campaign_id": campaign_id,
                 "session_id": session_id,
@@ -804,6 +807,9 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
         # Then strip any JSON blocks
         update_payload = extract_update_payload(dm_response_clean) or {}
         dm_response = strip_json_block(dm_response_clean)
+        
+        # Set default intent for single-agent responses
+        intent_used = "narrative_long"
     
     # Update scene state if provided
     scene_patch = update_payload.get("scene_state_patch", {})
@@ -823,7 +829,8 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
         "dm_response": dm_response,
         "scene_state": scene_state.model_dump(),
         "memory_writes": memory_writes,
-        "turn_summary": update_payload.get("turn_summary", "")
+        "turn_summary": update_payload.get("turn_summary", ""),
+        "intent_used": intent_used
     }
     
     # Update session
@@ -851,7 +858,8 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
         "dm_response": dm_response,
         "turn_number": session["turn_count"],
         "scene_state": scene_state.model_dump(),
-        "session_summary": session["summary"]
+        "session_summary": session["summary"],
+        "intent_used": intent_used
     }
 
 # Utility functions (from main.py)

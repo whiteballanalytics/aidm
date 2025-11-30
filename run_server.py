@@ -235,7 +235,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         "dm_response": parsed_dm_response,
                         "turn_number": result["turn_number"],
                         "scene_state": result["scene_state"],
-                        "session_summary": result["session_summary"]
+                        "session_summary": result["session_summary"],
+                        "intent_used": result.get("intent_used")
                     }, session_key)
                     
                 except Exception as e:
