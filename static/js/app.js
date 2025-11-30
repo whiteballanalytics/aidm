@@ -68,8 +68,14 @@ class DnDApp {
         await this.loadWorlds();
         this.setupEventListeners();
         this.initVoice();
+        this.initParty();
         this.showTab('campaigns');
         await this.refreshCampaigns();
+    }
+    
+    initParty() {
+        // Render initial party data (dummy characters have isLive: false by default)
+        this.updateLivePartyDisplay();
     }
     
     initVoice() {
