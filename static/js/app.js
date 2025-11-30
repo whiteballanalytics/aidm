@@ -9,6 +9,7 @@ class DnDApp {
         this.sessions = [];
         this.currentSession = null;
         this.websocket = null;
+        this.voiceClient = null;
         
         this.init();
     }
@@ -16,8 +17,35 @@ class DnDApp {
     async init() {
         await this.loadWorlds();
         this.setupEventListeners();
+        this.initVoice();
         this.showTab('campaigns');
         await this.refreshCampaigns();
+    }
+    
+    initVoice() {
+        if (typeof VoiceClient !== 'undefined') {
+            this.voiceClient = new VoiceClient(this);
+            
+            const micButton = document.getElementById('voice-mic-button');
+            if (micButton && !this.voiceClient.isAvailable()) {
+                micButton.disabled = true;
+                micButton.title = 'Voice input not supported in this browser';
+            }
+        }
+    }
+    
+    toggleVoice() {
+        if (!this.voiceClient) {
+            this.showAlert('Voice features are not available', 'error');
+            return;
+        }
+        
+        if (!this.voiceClient.isAvailable()) {
+            this.showAlert('Voice input is not supported in your browser. Try Chrome or Edge.', 'error');
+            return;
+        }
+        
+        this.voiceClient.toggleListening();
     }
 
     // API Methods
@@ -1321,7 +1349,23 @@ class DnDApp {
         if (!input || !input.value.trim()) return;
         
         const message = input.value.trim();
+        input.value = '';
         
+        this._sendMessageInternal(message);
+    }
+    
+    sendMessageFromVoice(text) {
+        if (!text || !text.trim()) return;
+        
+        const input = document.getElementById('chat-input');
+        if (input) {
+            input.value = '';
+        }
+        
+        this._sendMessageInternal(text.trim());
+    }
+    
+    _sendMessageInternal(message) {
         // Add user message to chat
         this.addChatMessage('user', message);
         
@@ -1336,8 +1380,6 @@ class DnDApp {
             // Fallback to REST API
             this.sendMessageREST(message);
         }
-        
-        input.value = '';
     }
 
     async sendMessageREST(message) {

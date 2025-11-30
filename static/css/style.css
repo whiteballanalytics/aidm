@@ -486,6 +486,84 @@ body {
     box-shadow: 0 0 15px rgba(244, 162, 89, 0.3);
 }
 
+.chat-input.voice-interim {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Voice button and status */
+.btn-voice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 2px solid var(--border-color);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-voice:hover {
+    border-color: var(--primary-accent);
+    color: var(--primary-accent);
+}
+
+.btn-voice.listening {
+    border-color: var(--error-color);
+    color: var(--error-color);
+    animation: pulse-listening 1.5s ease-in-out infinite;
+}
+
+.btn-voice.speaking {
+    border-color: var(--success-color);
+    color: var(--success-color);
+}
+
+.btn-voice.error {
+    border-color: var(--error-color);
+    color: var(--error-color);
+    opacity: 0.6;
+}
+
+.btn-voice:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+@keyframes pulse-listening {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
+    }
+}
+
+.voice-status {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    text-align: center;
+    min-height: 1.2em;
+    margin-top: 5px;
+}
+
+.voice-status.listening {
+    color: var(--error-color);
+}
+
+.voice-status.speaking {
+    color: var(--success-color);
+}
+
+.voice-status.error {
+    color: var(--error-color);
+}
+
 /* Loading states */
 .loading {
     display: inline-flex;
