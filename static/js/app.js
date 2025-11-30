@@ -177,17 +177,13 @@ class DnDApp {
         
         container.innerHTML = liveChars.map(char => `
             <div class="live-character-card">
-                <div class="live-character-header">
-                    <div>
-                        <div class="live-character-name">${char.name}</div>
-                        <div class="live-character-class">${char.race} ${char.class} Level ${char.level}</div>
-                    </div>
+                <div class="live-character-info">
+                    <div class="live-character-name">${char.name}</div>
+                    <div class="live-character-class">${char.race} ${char.class} Level ${char.level}</div>
                 </div>
-                <div class="live-character-stats">
-                    <div class="live-stat-box">
-                        <div class="live-stat-label">HP</div>
-                        <div class="live-stat-value">${char.currentHp}/${char.maxHp}</div>
-                    </div>
+                <div class="live-stat-box">
+                    <div class="live-stat-label">HP</div>
+                    <div class="live-stat-value">${char.currentHp}/${char.maxHp}</div>
                 </div>
             </div>
         `).join('');
