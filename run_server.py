@@ -39,6 +39,7 @@ from characters import (
     get_character,
     get_character_json,
     delete_character,
+    refresh_character_from_dndbeyond,
 )
 
 # Import voice module
@@ -504,6 +505,32 @@ async def delete_character_endpoint(request):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+async def refresh_character_endpoint(request):
+    """POST /api/characters/{character_id}/refresh - Refresh character from D&D Beyond"""
+    import traceback
+    character_id = request.path_params["character_id"]
+    try:
+        character = await refresh_character_from_dndbeyond(character_id)
+        if not character:
+            return JSONResponse({"error": "Character not found"}, status_code=404)
+        return JSONResponse(character)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        print(f"Error refreshing character: {e}")
+        traceback.print_exc()
+        error_msg = str(e)
+        if "403" in error_msg or "Forbidden" in error_msg:
+            return JSONResponse({
+                "error": "This character is private. Please set it to Public on D&D Beyond before refreshing."
+            }, status_code=403)
+        if "404" in error_msg or "Not Found" in error_msg:
+            return JSONResponse({
+                "error": "Character not found on D&D Beyond. It may have been deleted."
+            }, status_code=404)
+        return JSONResponse({"error": f"Failed to refresh character: {error_msg}"}, status_code=500)
+
+
 # Routes configuration
 routes = [
     # Main interface
@@ -536,6 +563,7 @@ routes = [
     Route('/api/characters/import/dndbeyond', import_dndbeyond_character_endpoint, methods=["POST"]),
     Route('/api/characters/{character_id}', get_character_endpoint, methods=["GET"]),
     Route('/api/characters/{character_id}', delete_character_endpoint, methods=["DELETE"]),
+    Route('/api/characters/{character_id}/refresh', refresh_character_endpoint, methods=["POST"]),
     Route('/api/characters/{character_id}/json', get_character_full_json_endpoint, methods=["GET"]),
     
     # WebSocket for real-time chat

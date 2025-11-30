@@ -353,3 +353,68 @@ async def update_character_campaign(character_id: str, campaign_id: Optional[str
         conn.close()
     
     return updated
+
+
+async def refresh_character_from_dndbeyond(character_id: str) -> Optional[dict]:
+    """
+    Refresh a character's data from D&D Beyond using the stored dndbeyond_id.
+    
+    Args:
+        character_id: The character's internal ID
+        
+    Returns:
+        The updated character record with display info, or None if not found
+        
+    Raises:
+        ValueError: If character has no D&D Beyond ID
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT dndbeyond_id FROM characters WHERE id = %s",
+                (character_id,)
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
+    
+    if not row:
+        return None
+    
+    dndbeyond_id = row[0]
+    if not dndbeyond_id:
+        raise ValueError("This character was not imported from D&D Beyond")
+    
+    character_json = await fetch_dndbeyond_character(dndbeyond_id)
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE characters 
+                SET character_json = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                RETURNING id, dndbeyond_id, campaign_id, created_at
+                """,
+                (json.dumps(character_json), character_id)
+            )
+            result = cur.fetchone()
+            conn.commit()
+    finally:
+        conn.close()
+    
+    if not result:
+        return None
+    
+    display_info = extract_display_info(character_json)
+    
+    return {
+        "id": result[0],
+        "dndbeyond_id": result[1],
+        "campaign_id": result[2],
+        "created_at": result[3].isoformat() if result[3] else None,
+        "source": "dndbeyond",
+        **display_info
+    }

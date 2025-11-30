@@ -99,6 +99,18 @@ class DnDApp {
         
         container.innerHTML = this.characters.map(char => `
             <div class="character-card" onclick="app.toggleCharacterLive('${char.id}')">
+                <div class="character-card-actions">
+                    <button class="char-action-btn" onclick="event.stopPropagation(); app.showUpdateCharacterModal('${char.id}')" title="Update">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3Z"/>
+                        </svg>
+                    </button>
+                    <button class="char-action-btn char-action-delete" onclick="event.stopPropagation(); app.confirmDeleteCharacter('${char.id}', '${char.name.replace(/'/g, "\\'")}')" title="Delete">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                    </button>
+                </div>
                 <input type="checkbox" class="character-card-radio" 
                        ${char.isLive ? 'checked' : ''} 
                        onclick="event.stopPropagation(); app.toggleCharacterLive('${char.id}')">
@@ -155,6 +167,102 @@ class DnDApp {
                 </div>
             </div>
         `).join('');
+    }
+    
+    confirmDeleteCharacter(charId, charName) {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 400px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3 style="color: var(--danger-color);">Delete Character</h3>
+                    <p style="margin-bottom: 20px;">Are you sure you want to delete <strong>${charName}</strong>? This cannot be undone.</p>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                        <button class="btn" style="background: var(--danger-color);" onclick="app.deleteCharacter('${charId}'); this.closest('[style*=fixed]').remove()">Delete</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    async deleteCharacter(charId) {
+        try {
+            await this.apiRequest(`/api/characters/${charId}`, { method: 'DELETE' });
+            this.characters = this.characters.filter(c => c.id !== charId);
+            this.renderCharacters();
+            this.updateLivePartyDisplay();
+            this.showAlert('Character deleted', 'success');
+        } catch (error) {
+            console.error('Failed to delete character:', error);
+            this.showAlert(error.message || 'Failed to delete character', 'error');
+        }
+    }
+    
+    showUpdateCharacterModal(charId) {
+        const char = this.characters.find(c => c.id === charId);
+        if (!char) return;
+        
+        const hasDDBSource = char.source === 'dndbeyond' && char.dndbeyond_id;
+        
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 450px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3>Update ${char.name}</h3>
+                    <p style="margin-bottom: 20px; color: var(--text-muted);">Choose how to update this character:</p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        ${hasDDBSource ? `
+                        <div class="card" style="cursor: pointer; margin-bottom: 0;" onclick="app.refreshCharacterFromDDB('${charId}'); this.closest('[style*=fixed]').remove();">
+                            <h4 style="color: var(--primary-accent); margin-bottom: 8px;">🔄 Refresh from D&D Beyond</h4>
+                            <p style="font-size: 0.9em;">Pull the latest data from your D&D Beyond character sheet (ID: ${char.dndbeyond_id}).</p>
+                        </div>
+                        ` : `
+                        <div class="card" style="margin-bottom: 0; opacity: 0.5;">
+                            <h4 style="color: var(--text-muted); margin-bottom: 8px;">🔄 Refresh from D&D Beyond</h4>
+                            <p style="font-size: 0.9em;">Not available - this character wasn't imported from D&D Beyond.</p>
+                        </div>
+                        `}
+                        
+                        <div class="card" style="cursor: pointer; margin-bottom: 0; opacity: 0.5;">
+                            <h4 style="color: var(--text-muted); margin-bottom: 8px;">📄 Upload New PDF</h4>
+                            <p style="font-size: 0.9em;">Coming soon - replace character data with a new PDF upload.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-20">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    async refreshCharacterFromDDB(charId) {
+        try {
+            this.showLoading('Refreshing character from D&D Beyond...');
+            
+            const updatedChar = await this.apiRequest(`/api/characters/${charId}/refresh`, { method: 'POST' });
+            
+            const index = this.characters.findIndex(c => c.id === charId);
+            if (index !== -1) {
+                const wasLive = this.characters[index].isLive;
+                this.characters[index] = { ...updatedChar, isLive: wasLive };
+            }
+            
+            this.renderCharacters();
+            this.updateLivePartyDisplay();
+            this.showAlert(`${updatedChar.name} updated successfully!`, 'success');
+            
+        } catch (error) {
+            console.error('Failed to refresh character:', error);
+            this.showAlert(error.message || 'Failed to refresh character', 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
     
     showAddCharacterMenu() {
