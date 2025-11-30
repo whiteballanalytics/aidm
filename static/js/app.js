@@ -136,8 +136,12 @@ class DnDApp {
                        onclick="event.stopPropagation(); app.toggleCharacterLive('${char.id}')">
                 <div class="character-card-name">${char.name}</div>
                 <div class="character-card-stat">
+                    <span class="character-card-stat-label">Class</span>
+                    <span class="character-card-stat-value">${char.class}</span>
+                </div>
+                <div class="character-card-stat">
                     <span class="character-card-stat-label">Level</span>
-                    <span class="character-card-stat-value">${char.level} ${char.class}</span>
+                    <span class="character-card-stat-value">${char.level}</span>
                 </div>
                 <div class="character-card-stat">
                     <span class="character-card-stat-label">Race</span>
@@ -146,14 +150,6 @@ class DnDApp {
                 <div class="character-card-stat">
                     <span class="character-card-stat-label">HP</span>
                     <span class="character-card-stat-value">${char.currentHp}/${char.maxHp}</span>
-                </div>
-                <div class="character-card-stat">
-                    <span class="character-card-stat-label">AC</span>
-                    <span class="character-card-stat-value">${char.ac}</span>
-                </div>
-                <div class="character-card-stat">
-                    <span class="character-card-stat-label">Weapons</span>
-                    <span class="character-card-stat-value">${char.weapons.join(', ')}</span>
                 </div>
             </div>
         `).join('');
@@ -184,17 +180,13 @@ class DnDApp {
                 <div class="live-character-header">
                     <div>
                         <div class="live-character-name">${char.name}</div>
-                        <div class="live-character-class">${char.race} ${char.class} ${char.level}</div>
+                        <div class="live-character-class">${char.race} ${char.class} Level ${char.level}</div>
                     </div>
                 </div>
                 <div class="live-character-stats">
                     <div class="live-stat-box">
                         <div class="live-stat-label">HP</div>
                         <div class="live-stat-value">${char.currentHp}/${char.maxHp}</div>
-                    </div>
-                    <div class="live-stat-box">
-                        <div class="live-stat-label">AC</div>
-                        <div class="live-stat-value">${char.ac}</div>
                     </div>
                 </div>
             </div>
@@ -1283,6 +1275,13 @@ class DnDApp {
     async playSession(sessionId) {
         try {
             this.currentSession = await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${sessionId}`);
+            
+            // Clear character selections when loading a new session
+            this.characters.forEach(c => c.isLive = false);
+            this.updateLivePartyDisplay();
+            if (this.partyPanelOpen) {
+                this.renderCharacters();
+            }
             
             // Update last_played timestamp
             try {

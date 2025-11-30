@@ -1211,10 +1211,16 @@ body {
 /* Live Party Display */
 .live-party-display {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 15px;
     margin-bottom: 20px;
     min-height: 0;
+}
+
+@media (max-width: 768px) {
+    .live-party-display {
+        grid-template-columns: 1fr;
+    }
 }
 
 .live-character-card {
@@ -1246,8 +1252,7 @@ body {
 }
 
 .live-character-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
     gap: 10px;
 }
 

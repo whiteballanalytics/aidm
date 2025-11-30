@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎲 D&D AI Dungeon Master</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=20251130-party">
+    <link rel="stylesheet" href="/static/css/style.css?v=20251130-party2">
 </head>
 <body>
     <div class="container">
@@ -143,13 +143,10 @@
                         <h2>Play Mode</h2>
                         <p>Interactive D&D gameplay with your AI Dungeon Master.</p>
                     </div>
-                    <button class="btn-party" id="party-button" title="Manage party">
-                        👥 Party
+                    <button class="btn-party" id="party-button" title="Manage characters">
+                        👥 Manage Characters
                     </button>
                 </div>
-
-                <!-- Live Character Display -->
-                <div id="live-party-display" class="live-party-display"></div>
 
                 <div class="card-grid">
                     <div id="current-play-info" class="card">
@@ -157,6 +154,9 @@
                         <button class="btn btn-secondary" onclick="app.showTab('sessions')">Back to Sessions</button>
                     </div>
                 </div>
+
+                <!-- Live Character Display (below session card) -->
+                <div id="live-party-display" class="live-party-display"></div>
 
                 <div class="chat-container">
                     <div id="chat-messages" class="chat-messages show-badges">
@@ -207,7 +207,7 @@
     <div id="party-overlay" class="party-overlay"></div>
     <div id="party-panel" class="party-panel">
         <div class="party-panel-header">
-            <h3>👥 Party</h3>
+            <h3>👥 Manage Characters</h3>
             <button class="party-close-btn" onclick="app.togglePartyPanel()">&times;</button>
         </div>
         <div class="party-panel-content">
@@ -220,6 +220,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
     <script src="/static/js/voice_client.js?v=20251130-tts"></script>
-    <script src="/static/js/app.js?v=20251130-party"></script>
+    <script src="/static/js/app.js?v=20251130-party2"></script>
 </body>
 </html>
