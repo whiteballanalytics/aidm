@@ -157,6 +157,13 @@
                     
                     <div class="chat-input-area">
                         <form id="chat-form" style="display: flex; width: 100%; gap: 15px; align-items: center;">
+                            <input 
+                                type="text" 
+                                id="chat-input" 
+                                class="chat-input" 
+                                placeholder="Describe your action..."
+                                autocomplete="off"
+                            >
                             <button type="button" id="voice-mic-button" class="btn btn-voice" title="Click to speak" onclick="app.toggleVoice()">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
@@ -165,13 +172,6 @@
                                     <line x1="8" y1="23" x2="16" y2="23"></line>
                                 </svg>
                             </button>
-                            <input 
-                                type="text" 
-                                id="chat-input" 
-                                class="chat-input" 
-                                placeholder="Describe your action..."
-                                autocomplete="off"
-                            >
                             <button type="submit" class="btn">Send</button>
                         </form>
                         <div id="voice-status" class="voice-status"></div>
@@ -194,7 +194,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
-    <script src="/static/js/voice_client.js?v=20251130-voice-fix2"></script>
-    <script src="/static/js/app.js?v=20251130-voice-fix2"></script>
+    <script src="/static/js/voice_client.js?v=20251130-no-autosubmit"></script>
+    <script src="/static/js/app.js?v=20251130-no-autosubmit"></script>
 </body>
 </html>

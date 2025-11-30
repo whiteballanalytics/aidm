@@ -142,7 +142,8 @@ class VoiceClient {
     }
     
     /**
-     * Submit the final transcription as a message
+     * Place the final transcription in the input field for user review
+     * User can then edit and submit manually when ready
      */
     _submitFinalText(text) {
         this.hasFinalResult = true;
@@ -151,10 +152,7 @@ class VoiceClient {
         if (input) {
             input.value = text;
             input.classList.remove('voice-interim');
-        }
-        
-        if (text && this.chatApp) {
-            this.chatApp.sendMessageFromVoice(text);
+            input.focus();
         }
     }
     
