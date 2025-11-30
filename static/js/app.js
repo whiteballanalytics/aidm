@@ -10,6 +10,56 @@ class DnDApp {
         this.currentSession = null;
         this.websocket = null;
         this.voiceClient = null;
+        this.partyPanelOpen = false;
+        
+        // Dummy character data for testing
+        this.characters = [
+            {
+                id: 'char_115183470',
+                name: 'Arador Callidux',
+                race: 'Dragonborn',
+                class: 'Wizard',
+                subclass: 'School of Evocation',
+                level: 3,
+                maxHp: 14,
+                currentHp: 14,
+                ac: 12,
+                weapons: ['Quarterstaff'],
+                source: 'dndbeyond',
+                sourceId: '115183470',
+                isLive: false
+            },
+            {
+                id: 'char_mock_001',
+                name: 'Thorn Ironforge',
+                race: 'Dwarf',
+                class: 'Fighter',
+                subclass: 'Champion',
+                level: 4,
+                maxHp: 40,
+                currentHp: 32,
+                ac: 18,
+                weapons: ['Battleaxe', 'Handaxe'],
+                source: 'manual',
+                sourceId: null,
+                isLive: false
+            },
+            {
+                id: 'char_mock_002',
+                name: 'Lyra Moonwhisper',
+                race: 'Half-Elf',
+                class: 'Bard',
+                subclass: 'College of Lore',
+                level: 3,
+                maxHp: 21,
+                currentHp: 21,
+                ac: 14,
+                weapons: ['Rapier', 'Shortbow'],
+                source: 'pdf',
+                sourceId: null,
+                isLive: false
+            }
+        ];
         
         this.init();
     }
@@ -46,6 +96,220 @@ class DnDApp {
         }
         
         this.voiceClient.toggleListening();
+    }
+
+    // Party Management Methods
+    togglePartyPanel() {
+        this.partyPanelOpen = !this.partyPanelOpen;
+        const panel = document.getElementById('party-panel');
+        const overlay = document.getElementById('party-overlay');
+        
+        if (this.partyPanelOpen) {
+            panel.classList.add('active');
+            overlay.classList.add('active');
+            this.renderCharacters();
+        } else {
+            panel.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+    }
+    
+    renderCharacters() {
+        const container = document.getElementById('character-list');
+        if (!container) return;
+        
+        if (this.characters.length === 0) {
+            container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted);">No characters yet. Add one to get started!</p>';
+            return;
+        }
+        
+        container.innerHTML = this.characters.map(char => `
+            <div class="character-card" onclick="app.toggleCharacterLive('${char.id}')">
+                <input type="checkbox" class="character-card-radio" 
+                       ${char.isLive ? 'checked' : ''} 
+                       onclick="event.stopPropagation(); app.toggleCharacterLive('${char.id}')">
+                <div class="character-card-name">${char.name}</div>
+                <div class="character-card-stat">
+                    <span class="character-card-stat-label">Level</span>
+                    <span class="character-card-stat-value">${char.level} ${char.class}</span>
+                </div>
+                <div class="character-card-stat">
+                    <span class="character-card-stat-label">Race</span>
+                    <span class="character-card-stat-value">${char.race}</span>
+                </div>
+                <div class="character-card-stat">
+                    <span class="character-card-stat-label">HP</span>
+                    <span class="character-card-stat-value">${char.currentHp}/${char.maxHp}</span>
+                </div>
+                <div class="character-card-stat">
+                    <span class="character-card-stat-label">AC</span>
+                    <span class="character-card-stat-value">${char.ac}</span>
+                </div>
+                <div class="character-card-stat">
+                    <span class="character-card-stat-label">Weapons</span>
+                    <span class="character-card-stat-value">${char.weapons.join(', ')}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    toggleCharacterLive(charId) {
+        const char = this.characters.find(c => c.id === charId);
+        if (char) {
+            char.isLive = !char.isLive;
+            this.renderCharacters();
+            this.updateLivePartyDisplay();
+        }
+    }
+    
+    updateLivePartyDisplay() {
+        const container = document.getElementById('live-party-display');
+        if (!container) return;
+        
+        const liveChars = this.characters.filter(c => c.isLive);
+        
+        if (liveChars.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        
+        container.innerHTML = liveChars.map(char => `
+            <div class="live-character-card">
+                <div class="live-character-header">
+                    <div>
+                        <div class="live-character-name">${char.name}</div>
+                        <div class="live-character-class">${char.race} ${char.class} ${char.level}</div>
+                    </div>
+                </div>
+                <div class="live-character-stats">
+                    <div class="live-stat-box">
+                        <div class="live-stat-label">HP</div>
+                        <div class="live-stat-value">${char.currentHp}/${char.maxHp}</div>
+                    </div>
+                    <div class="live-stat-box">
+                        <div class="live-stat-label">AC</div>
+                        <div class="live-stat-value">${char.ac}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    showAddCharacterMenu() {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 450px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3>Add Character</h3>
+                    <p style="margin-bottom: 20px; color: var(--text-muted);">Choose how to add your character:</p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <div class="card" style="cursor: pointer; margin-bottom: 0;" onclick="app.showDDBImportForm(); this.closest('[style*=fixed]').remove();">
+                            <h4 style="color: var(--primary-accent); margin-bottom: 8px;">🔗 Import from D&D Beyond</h4>
+                            <p style="font-size: 0.9em;">Paste a D&D Beyond character URL or ID to import your character sheet automatically.</p>
+                        </div>
+                        
+                        <div class="card" style="cursor: pointer; margin-bottom: 0;" onclick="app.showPDFUploadForm(); this.closest('[style*=fixed]').remove();">
+                            <h4 style="color: var(--primary-accent); margin-bottom: 8px;">📄 Upload Character PDF</h4>
+                            <p style="font-size: 0.9em;">Upload a PDF character sheet to extract your character's stats.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-20">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    showDDBImportForm() {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 450px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3>Import from D&D Beyond</h3>
+                    <p style="margin-bottom: 20px; color: var(--text-muted);">Enter your character URL or ID:</p>
+                    
+                    <div class="form-group">
+                        <input type="text" id="ddb-import-input" class="form-input" 
+                               placeholder="https://dndbeyond.com/characters/115183470 or just 115183470">
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                        <button class="btn" onclick="app.importFromDDB()">Import Character</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById('ddb-import-input').focus();
+    }
+    
+    importFromDDB() {
+        const input = document.getElementById('ddb-import-input');
+        const value = input?.value?.trim();
+        
+        if (!value) {
+            this.showAlert('Please enter a D&D Beyond character URL or ID', 'error');
+            return;
+        }
+        
+        // Extract character ID from URL or use directly
+        let charId = value;
+        const urlMatch = value.match(/characters\/(\d+)/);
+        if (urlMatch) {
+            charId = urlMatch[1];
+        }
+        
+        // TODO: Implement actual DDB API call
+        console.log('Importing character from D&D Beyond:', charId);
+        this.showAlert(`Character import requested for ID: ${charId}. Backend integration coming soon!`, 'info');
+        
+        // Close modal
+        document.querySelector('[style*="z-index: 1100"]')?.remove();
+    }
+    
+    showPDFUploadForm() {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 450px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3>Upload Character PDF</h3>
+                    <p style="margin-bottom: 20px; color: var(--text-muted);">Select a PDF character sheet to upload:</p>
+                    
+                    <div class="form-group">
+                        <input type="file" id="pdf-upload-input" class="form-input" accept=".pdf"
+                               style="padding: 10px;">
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                        <button class="btn" onclick="app.uploadPDF()">Upload & Extract</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    uploadPDF() {
+        const input = document.getElementById('pdf-upload-input');
+        const file = input?.files?.[0];
+        
+        if (!file) {
+            this.showAlert('Please select a PDF file', 'error');
+            return;
+        }
+        
+        // TODO: Implement PDF upload and extraction
+        console.log('Uploading PDF:', file.name);
+        this.showAlert(`PDF "${file.name}" received. Backend extraction coming soon!`, 'info');
+        
+        // Close modal
+        document.querySelector('[style*="z-index: 1100"]')?.remove();
     }
 
     // API Methods
@@ -163,6 +427,18 @@ class DnDApp {
                     this.sendMessage();
                 }
             });
+        }
+        
+        // Party panel button
+        const partyButton = document.getElementById('party-button');
+        if (partyButton) {
+            partyButton.addEventListener('click', () => this.togglePartyPanel());
+        }
+        
+        // Party overlay click to close
+        const partyOverlay = document.getElementById('party-overlay');
+        if (partyOverlay) {
+            partyOverlay.addEventListener('click', () => this.togglePartyPanel());
         }
     }
 

@@ -7,6 +7,32 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 
 ## Recent Changes
 
+### November 30, 2025 - Party Management UI (Character Sheets)
+- ✅ Added Party button to Play Mode header (top-right corner)
+  - Opens right-side slide-over panel for character management
+  - Smooth slide animation with dark overlay backdrop
+- ✅ Created character card components in two-column grid layout
+  - Displays: Name, Level, Class, Race, HP, AC, Weapons
+  - Checkbox selection for "live" characters in current session
+  - Click card or checkbox to toggle selection
+- ✅ Live party display at top of Play Mode
+  - Shows selected characters with HP/AC stat boxes
+  - Real-time updates when characters are toggled
+- ✅ Add Character flow with two options:
+  - **Import from D&D Beyond**: Paste URL or character ID
+  - **Upload PDF**: Select PDF character sheet
+  - Both have dummy handlers (backend integration pending)
+- ✅ Hardcoded 3 test characters for UX testing:
+  - Arador Callidux (Dragonborn Wizard 3, from D&D Beyond)
+  - Thorn Ironforge (Dwarf Fighter 4, manual entry)
+  - Lyra Moonwhisper (Half-Elf Bard 3, from PDF)
+
+**D&D Beyond API Discovery:**
+- Public characters accessible via `GET https://character-service.dndbeyond.com/character/v5/character/{id}`
+- No authentication required for public characters
+- Returns full character data: stats, race, class, spells, inventory, proficiencies, backstory
+- See investigation notes in chat history for full field mapping
+
 ### November 30, 2025 - Voice Output (TTS) Implementation (Phase 2)
 - ✅ Implemented OpenAI TTS provider (`src/voice/tts/openai_tts.py`)
   - Uses `tts-1` model with `fable` voice (British, expressive - great for fantasy)
