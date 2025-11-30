@@ -219,6 +219,19 @@ class DnDApp {
             return;
         }
         
+        // Extract character ID from URL or use directly if numeric
+        let charId = value;
+        const urlMatch = value.match(/characters\/(\d+)/);
+        if (urlMatch) {
+            charId = urlMatch[1];
+        }
+        
+        // Validate that we have a numeric ID
+        if (!/^\d+$/.test(charId)) {
+            this.showAlert('Invalid character ID. Please enter a numeric ID or a valid D&D Beyond URL.', 'error');
+            return;
+        }
+        
         // Close modal first
         document.querySelector('[style*="z-index: 1100"]')?.remove();
         
@@ -229,7 +242,7 @@ class DnDApp {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    dndbeyond_id: value,
+                    dndbeyond_id: charId,
                     campaign_id: this.currentCampaign?.campaign_id || null
                 })
             });
