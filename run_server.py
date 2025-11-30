@@ -32,6 +32,15 @@ from game_engine import (
 from main import strip_json_block
 from game_engine import extract_narrative_from_runresult
 
+# Import character management module
+from characters import (
+    import_character_from_dndbeyond,
+    list_characters,
+    get_character,
+    get_character_json,
+    delete_character,
+)
+
 # Import voice module
 from voice import (
     get_voice_controller,
@@ -403,6 +412,86 @@ async def status(request):
     
     return JSONResponse(status_data)
 
+
+# Character Management Endpoints
+async def import_dndbeyond_character_endpoint(request):
+    """POST /api/characters/import/dndbeyond - Import a character from D&D Beyond"""
+    try:
+        data = await request.json()
+        dndbeyond_id = data.get("dndbeyond_id", "").strip()
+        campaign_id = data.get("campaign_id")
+        
+        if not dndbeyond_id:
+            return JSONResponse({"error": "dndbeyond_id is required"}, status_code=400)
+        
+        # Extract numeric ID from URL if full URL was provided
+        if "dndbeyond.com" in dndbeyond_id:
+            # Extract ID from URL like https://www.dndbeyond.com/characters/115183470
+            import re
+            match = re.search(r'/characters/(\d+)', dndbeyond_id)
+            if match:
+                dndbeyond_id = match.group(1)
+            else:
+                return JSONResponse({"error": "Could not extract character ID from URL"}, status_code=400)
+        
+        character = await import_character_from_dndbeyond(dndbeyond_id, campaign_id)
+        return JSONResponse(character, status_code=201)
+        
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        error_msg = str(e)
+        if "404" in error_msg or "Not Found" in error_msg:
+            return JSONResponse({"error": "Character not found. Make sure the character is public on D&D Beyond."}, status_code=404)
+        return JSONResponse({"error": f"Failed to import character: {error_msg}"}, status_code=500)
+
+
+async def get_characters_endpoint(request):
+    """GET /api/characters - List all characters"""
+    try:
+        campaign_id = request.query_params.get("campaign_id")
+        characters = await list_characters(campaign_id)
+        return JSONResponse({"characters": characters})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+async def get_character_endpoint(request):
+    """GET /api/characters/{character_id} - Get a specific character"""
+    character_id = request.path_params["character_id"]
+    try:
+        character = await get_character(character_id)
+        if not character:
+            return JSONResponse({"error": "Character not found"}, status_code=404)
+        return JSONResponse(character)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+async def get_character_full_json_endpoint(request):
+    """GET /api/characters/{character_id}/json - Get the full D&D Beyond JSON"""
+    character_id = request.path_params["character_id"]
+    try:
+        character_json = await get_character_json(character_id)
+        if not character_json:
+            return JSONResponse({"error": "Character not found"}, status_code=404)
+        return JSONResponse(character_json)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+async def delete_character_endpoint(request):
+    """DELETE /api/characters/{character_id} - Delete a character"""
+    character_id = request.path_params["character_id"]
+    try:
+        deleted = await delete_character(character_id)
+        if not deleted:
+            return JSONResponse({"error": "Character not found"}, status_code=404)
+        return JSONResponse({"success": True, "message": "Character deleted"})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 # Routes configuration
 routes = [
     # Main interface
@@ -429,6 +518,13 @@ routes = [
     
     # Voice/TTS
     Route('/api/tts', tts_endpoint, methods=["POST"]),
+    
+    # Character management
+    Route('/api/characters', get_characters_endpoint, methods=["GET"]),
+    Route('/api/characters/import/dndbeyond', import_dndbeyond_character_endpoint, methods=["POST"]),
+    Route('/api/characters/{character_id}', get_character_endpoint, methods=["GET"]),
+    Route('/api/characters/{character_id}', delete_character_endpoint, methods=["DELETE"]),
+    Route('/api/characters/{character_id}/json', get_character_full_json_endpoint, methods=["GET"]),
     
     # WebSocket for real-time chat
     WebSocketRoute('/ws/{campaign_id}/{session_id}', websocket_endpoint),

@@ -12,54 +12,8 @@ class DnDApp {
         this.voiceClient = null;
         this.partyPanelOpen = false;
         
-        // Dummy character data for testing
-        this.characters = [
-            {
-                id: 'char_115183470',
-                name: 'Arador Callidux',
-                race: 'Dragonborn',
-                class: 'Wizard',
-                subclass: 'School of Evocation',
-                level: 3,
-                maxHp: 14,
-                currentHp: 14,
-                ac: 12,
-                weapons: ['Quarterstaff'],
-                source: 'dndbeyond',
-                sourceId: '115183470',
-                isLive: false
-            },
-            {
-                id: 'char_mock_001',
-                name: 'Thorn Ironforge',
-                race: 'Dwarf',
-                class: 'Fighter',
-                subclass: 'Champion',
-                level: 4,
-                maxHp: 40,
-                currentHp: 32,
-                ac: 18,
-                weapons: ['Battleaxe', 'Handaxe'],
-                source: 'manual',
-                sourceId: null,
-                isLive: false
-            },
-            {
-                id: 'char_mock_002',
-                name: 'Lyra Moonwhisper',
-                race: 'Half-Elf',
-                class: 'Bard',
-                subclass: 'College of Lore',
-                level: 3,
-                maxHp: 21,
-                currentHp: 21,
-                ac: 14,
-                weapons: ['Rapier', 'Shortbow'],
-                source: 'pdf',
-                sourceId: null,
-                isLive: false
-            }
-        ];
+        // Characters loaded from database
+        this.characters = [];
         
         this.init();
     }
@@ -73,9 +27,23 @@ class DnDApp {
         await this.refreshCampaigns();
     }
     
-    initParty() {
-        // Render initial party data (dummy characters have isLive: false by default)
+    async initParty() {
+        // Load characters from database
+        await this.loadCharacters();
         this.updateLivePartyDisplay();
+    }
+    
+    async loadCharacters() {
+        try {
+            const response = await this.apiRequest('/api/characters');
+            this.characters = (response.characters || []).map(char => ({
+                ...char,
+                isLive: false
+            }));
+        } catch (error) {
+            console.warn('Failed to load characters:', error);
+            this.characters = [];
+        }
     }
     
     initVoice() {
@@ -242,7 +210,7 @@ class DnDApp {
         document.getElementById('ddb-import-input').focus();
     }
     
-    importFromDDB() {
+    async importFromDDB() {
         const input = document.getElementById('ddb-import-input');
         const value = input?.value?.trim();
         
@@ -251,19 +219,40 @@ class DnDApp {
             return;
         }
         
-        // Extract character ID from URL or use directly
-        let charId = value;
-        const urlMatch = value.match(/characters\/(\d+)/);
-        if (urlMatch) {
-            charId = urlMatch[1];
-        }
-        
-        // TODO: Implement actual DDB API call
-        console.log('Importing character from D&D Beyond:', charId);
-        this.showAlert(`Character import requested for ID: ${charId}. Backend integration coming soon!`, 'info');
-        
-        // Close modal
+        // Close modal first
         document.querySelector('[style*="z-index: 1100"]')?.remove();
+        
+        try {
+            this.showLoading('Importing character from D&D Beyond...');
+            
+            const response = await this.apiRequest('/api/characters/import/dndbeyond', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    dndbeyond_id: value,
+                    campaign_id: this.currentCampaign?.campaign_id || null
+                })
+            });
+            
+            // Add the imported character to our list
+            this.characters.push({
+                ...response,
+                isLive: false
+            });
+            
+            // Refresh the character display
+            if (this.partyPanelOpen) {
+                this.renderCharacters();
+            }
+            
+            this.showAlert(`Successfully imported ${response.name}!`, 'success');
+            
+        } catch (error) {
+            console.error('Failed to import character:', error);
+            this.showAlert(error.message || 'Failed to import character. Make sure the character is public on D&D Beyond.', 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
     
     showPDFUploadForm() {
