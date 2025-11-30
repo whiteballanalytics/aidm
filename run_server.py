@@ -416,6 +416,7 @@ async def status(request):
 # Character Management Endpoints
 async def import_dndbeyond_character_endpoint(request):
     """POST /api/characters/import/dndbeyond - Import a character from D&D Beyond"""
+    import traceback
     try:
         data = await request.json()
         dndbeyond_id = data.get("dndbeyond_id", "").strip()
@@ -434,12 +435,17 @@ async def import_dndbeyond_character_endpoint(request):
             else:
                 return JSONResponse({"error": "Could not extract character ID from URL"}, status_code=400)
         
+        print(f"Importing character from D&D Beyond: {dndbeyond_id}")
         character = await import_character_from_dndbeyond(dndbeyond_id, campaign_id)
+        print(f"Successfully imported character: {character.get('name', 'Unknown')}")
         return JSONResponse(character, status_code=201)
         
     except ValueError as e:
+        print(f"ValueError importing character: {e}")
         return JSONResponse({"error": str(e)}, status_code=400)
     except Exception as e:
+        print(f"Error importing character: {e}")
+        traceback.print_exc()
         error_msg = str(e)
         if "404" in error_msg or "Not Found" in error_msg:
             return JSONResponse({"error": "Character not found. Make sure the character is public on D&D Beyond."}, status_code=404)

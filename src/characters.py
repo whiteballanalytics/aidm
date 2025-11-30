@@ -82,17 +82,17 @@ def extract_display_info(character_json: dict) -> dict:
         level = 1
         total_level = 1
     
-    base_hp = data.get("baseHitPoints", 0)
-    removed_hp = data.get("removedHitPoints", 0)
-    temp_hp = data.get("temporaryHitPoints", 0)
-    bonus_hp = data.get("bonusHitPoints", 0)
+    base_hp = data.get("baseHitPoints") or 0
+    removed_hp = data.get("removedHitPoints") or 0
+    temp_hp = data.get("temporaryHitPoints") or 0
+    bonus_hp = data.get("bonusHitPoints") or 0
     
     constitution_modifier = 0
     stats = data.get("stats", [])
     modifiers = data.get("modifiers", {})
     for stat in stats:
         if stat.get("id") == 3:
-            base_con = stat.get("value", 10)
+            base_con = stat.get("value") or 10
             constitution_modifier = (base_con - 10) // 2
             break
     
