@@ -8,16 +8,18 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 ## Recent Changes
 
 ### November 30, 2025 - Party Management UI (Character Sheets)
-- ✅ Added Party button to Play Mode header (top-right corner)
+- ✅ Added "Manage Characters" button to Play Mode header (top-right corner)
   - Opens right-side slide-over panel for character management
   - Smooth slide animation with dark overlay backdrop
 - ✅ Created character card components in two-column grid layout
-  - Displays: Name, Level, Class, Race, HP, AC, Weapons
+  - Displays: Name, Class, Level (separate rows), Race, HP
   - Checkbox selection for "live" characters in current session
   - Click card or checkbox to toggle selection
-- ✅ Live party display at top of Play Mode
-  - Shows selected characters with HP/AC stat boxes
+- ✅ Live party display below session card in Play Mode
+  - Shows selected characters with HP stat box and "Level X" format
   - Real-time updates when characters are toggled
+  - 2-column responsive grid layout
+  - Characters cleared when new session loads
 - ✅ Add Character flow with two options:
   - **Import from D&D Beyond**: Paste URL or character ID
   - **Upload PDF**: Select PDF character sheet
