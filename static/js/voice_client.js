@@ -21,6 +21,8 @@ class VoiceClient {
         this.audioContext = null;
         this.currentAudio = null;
         this.ttsEnabled = true;
+        this.currentAbortController = null;
+        this.currentOnComplete = null;
         
         this._initializeRecognition();
     }
@@ -241,17 +243,28 @@ class VoiceClient {
     /**
      * Speak a DM response using TTS
      * Requests audio from backend and plays it
+     * @param {string} text - Text to speak
+     * @param {string} intent - Intent type
+     * @param {Function} onComplete - Optional callback when playback completes
+     * @returns {Promise} Resolves when playback completes
      */
-    async speakDMResponse(text, intent) {
+    async speakDMResponse(text, intent, onComplete = null) {
         if (!this.shouldSpeak(intent)) {
+            if (onComplete) onComplete();
             return;
         }
         
         if (!text || text.trim().length === 0) {
+            if (onComplete) onComplete();
             return;
         }
         
         this.stopPlayback();
+        
+        // Create abort controller for this request
+        const abortController = new AbortController();
+        this.currentAbortController = abortController;
+        this.currentOnComplete = onComplete;
         
         try {
             console.log(`Requesting TTS for intent: ${intent}`);
@@ -264,106 +277,162 @@ class VoiceClient {
                 body: JSON.stringify({
                     text: text,
                     intent: intent
-                })
+                }),
+                signal: abortController.signal
             });
+            
+            // Check if we were cancelled during the fetch
+            if (abortController.signal.aborted) {
+                return;
+            }
             
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 console.warn('TTS request failed:', errorData.error || response.statusText);
+                if (onComplete) onComplete();
                 return;
             }
             
             const audioBlob = await response.blob();
+            
+            // Check if we were cancelled during blob reading
+            if (abortController.signal.aborted) {
+                return;
+            }
+            
             const audioUrl = URL.createObjectURL(audioBlob);
             
-            await this.playResponse(audioUrl, { cleanup: true });
+            await this.playResponse(audioUrl, { cleanup: true, onComplete });
             
         } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('TTS request was cancelled');
+                // onComplete already called by stopPlayback
+                return;
+            }
             console.error('Failed to get TTS audio:', error);
+            if (onComplete) onComplete();
+        } finally {
+            if (this.currentAbortController === abortController) {
+                this.currentAbortController = null;
+                this.currentOnComplete = null;
+            }
         }
     }
     
     /**
      * Play TTS audio for a DM response
+     * Note: This does NOT call stopPlayback() - caller is responsible for cleanup
+     * @returns {Promise} Resolves when playback completes
      */
     async playResponse(audioUrl, options = {}) {
         if (!audioUrl) {
             console.warn('No audio URL provided');
+            if (options.onComplete) options.onComplete();
             return;
         }
         
-        this.stopPlayback();
-        
-        try {
-            const audio = new Audio(audioUrl);
-            this.currentAudio = audio;
-            
-            audio.volume = options.volume || 1.0;
-            audio.playbackRate = options.speed || 1.0;
-            
-            const cleanupUrl = options.cleanup ? audioUrl : null;
-            
-            audio.onplay = () => {
-                this._updateUI('speaking');
-            };
-            
-            audio.onended = () => {
-                this.currentAudio = null;
-                this._updateUI('idle');
-                if (cleanupUrl) {
-                    URL.revokeObjectURL(cleanupUrl);
-                }
-            };
-            
-            audio.onerror = (error) => {
-                console.error('Audio playback error:', error);
-                this.currentAudio = null;
-                this._updateUI('idle');
-                if (cleanupUrl) {
-                    URL.revokeObjectURL(cleanupUrl);
-                }
-            };
-            
-            await audio.play();
-        } catch (error) {
-            console.error('Failed to play audio:', error);
-            this._updateUI('idle');
+        // Stop any currently playing audio (but don't abort controllers - handled by caller)
+        if (this.currentAudio) {
+            const oldAudio = this.currentAudio;
+            this.currentAudio = null;
+            oldAudio.pause();
+            // Note: don't trigger old onended - the new playback takes over
         }
+        
+        return new Promise((resolve) => {
+            try {
+                const audio = new Audio(audioUrl);
+                this.currentAudio = audio;
+                
+                audio.volume = options.volume || 1.0;
+                audio.playbackRate = options.speed || 1.0;
+                
+                const cleanupUrl = options.cleanup ? audioUrl : null;
+                
+                const cleanup = () => {
+                    this.currentAudio = null;
+                    this._updateUI('idle');
+                    if (cleanupUrl) {
+                        URL.revokeObjectURL(cleanupUrl);
+                    }
+                    if (options.onComplete) options.onComplete();
+                    resolve();
+                };
+                
+                audio.onplay = () => {
+                    this._updateUI('speaking');
+                };
+                
+                audio.onended = cleanup;
+                
+                audio.onerror = (error) => {
+                    console.error('Audio playback error:', error);
+                    cleanup();
+                };
+                
+                audio.play().catch((error) => {
+                    console.error('Failed to play audio:', error);
+                    cleanup();
+                });
+            } catch (error) {
+                console.error('Failed to play audio:', error);
+                this._updateUI('idle');
+                if (options.onComplete) options.onComplete();
+                resolve();
+            }
+        });
     }
     
     /**
-     * Stop any current audio playback
+     * Stop any current audio playback or pending TTS request
      */
     stopPlayback() {
+        // Cancel any pending TTS request
+        if (this.currentAbortController) {
+            this.currentAbortController.abort();
+            // Call the onComplete callback since we're cancelling
+            if (this.currentOnComplete) {
+                this.currentOnComplete();
+                this.currentOnComplete = null;
+            }
+            this.currentAbortController = null;
+        }
+        
+        // Stop any playing audio
         if (this.currentAudio) {
-            this.currentAudio.pause();
+            const audio = this.currentAudio;
             this.currentAudio = null;
-            this._updateUI('idle');
+            audio.pause();
+            // Trigger onended to run cleanup callbacks
+            if (audio.onended) {
+                audio.onended();
+            }
         }
     }
     
     /**
      * Update UI elements based on voice state
+     * Note: 'speaking' state is handled by the play button on each message, not the mic button
      */
     _updateUI(state, error = null) {
         const micButton = document.getElementById('voice-mic-button');
         const voiceStatus = document.getElementById('voice-status');
         
         if (micButton) {
-            micButton.classList.remove('listening', 'speaking', 'error');
+            micButton.classList.remove('listening', 'error');
             
             switch (state) {
                 case 'listening':
                     micButton.classList.add('listening');
                     micButton.title = 'Listening... (click to stop)';
                     break;
-                case 'speaking':
-                    micButton.classList.add('speaking');
-                    micButton.title = 'DM is speaking...';
-                    break;
                 case 'error':
                     micButton.classList.add('error');
                     micButton.title = `Error: ${error}`;
+                    break;
+                case 'speaking':
+                    // Don't change mic button for speaking - handled by play button
                     break;
                 default:
                     micButton.title = 'Click to speak';
@@ -377,8 +446,7 @@ class VoiceClient {
                     voiceStatus.className = 'voice-status listening';
                     break;
                 case 'speaking':
-                    voiceStatus.textContent = 'DM speaking...';
-                    voiceStatus.className = 'voice-status speaking';
+                    // Don't show status for speaking - the play button indicates this
                     break;
                 case 'error':
                     voiceStatus.textContent = `Error: ${error}`;

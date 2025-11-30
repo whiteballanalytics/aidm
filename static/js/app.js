@@ -1276,8 +1276,53 @@ class DnDApp {
         const textNode = document.createTextNode(content);
         messageDiv.appendChild(textNode);
         
+        // Add play button for DM messages with speakable intents
+        if (role === 'dm' && this.voiceClient && this.voiceClient.shouldSpeak(intent)) {
+            const playBtn = document.createElement('button');
+            playBtn.className = 'dm-play-btn';
+            playBtn.title = 'Listen to DM';
+            playBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+            playBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.playDMMessage(content, intent, playBtn);
+            };
+            messageDiv.appendChild(playBtn);
+        }
+        
         container.appendChild(messageDiv);
         this.scrollChatToBottom();
+    }
+    
+    playDMMessage(text, intent, button) {
+        if (!this.voiceClient) return;
+        
+        const playIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+        const pauseIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
+        
+        // If already playing, stop
+        if (button.classList.contains('playing')) {
+            this.voiceClient.stopPlayback();
+            return;
+        }
+        
+        // Stop any other playing audio and reset their buttons
+        document.querySelectorAll('.dm-play-btn.playing').forEach(btn => {
+            btn.classList.remove('playing');
+            btn.innerHTML = playIcon;
+        });
+        this.voiceClient.stopPlayback();
+        
+        // Mark as playing
+        button.classList.add('playing');
+        button.innerHTML = pauseIcon;
+        
+        // Callback resets button when playback completes or stops
+        const resetButton = () => {
+            button.classList.remove('playing');
+            button.innerHTML = playIcon;
+        };
+        
+        this.voiceClient.speakDMResponse(text, intent, resetButton);
     }
     
     getAgentLabel(intent) {
@@ -1326,10 +1371,6 @@ class DnDApp {
                 // Update session info
                 if (data.turn_number) {
                     this.currentSession.turn_number = data.turn_number;
-                }
-                // Trigger TTS for speakable intents
-                if (this.voiceClient) {
-                    this.voiceClient.speakDMResponse(data.dm_response, data.intent_used);
                 }
             } else if (data.type === 'dm_thinking') {
                 this.addChatMessage('system', data.message);
@@ -1400,11 +1441,6 @@ class DnDApp {
             
             if (result.turn_number) {
                 this.currentSession.turn_number = result.turn_number;
-            }
-            
-            // Trigger TTS for speakable intents
-            if (this.voiceClient) {
-                this.voiceClient.speakDMResponse(result.dm_response, result.intent_used);
             }
         } catch (error) {
             this.addChatMessage('system', 'Failed to send message. Please try again.');
