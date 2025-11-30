@@ -7,6 +7,35 @@ This project is an interactive, turn-based Dungeons & Dragons session runner pow
 
 ## Recent Changes
 
+### November 30, 2025 - Voice Input Architecture (Phase 1)
+- ✅ Created voice architecture documentation (`docs/VOICE_ARCHITECTURE.md`)
+  - Design goals, STT/TTS strategies, extension points
+  - Implementation status with phases clearly defined
+  - Provider interfaces and configuration system
+- ✅ Implemented backend voice module scaffold (`src/voice/`)
+  - Abstract `TTSProvider` and `STTProvider` base classes
+  - `VoiceConfig` with intent-to-voice and NPC-to-voice mapping
+  - `VoiceController` facade for coordinating voice operations
+  - Support for multiple providers (OpenAI, ElevenLabs ready)
+- ✅ Implemented frontend voice client (`static/js/voice_client.js`)
+  - Web Speech API integration for browser-native STT
+  - Microphone button with listening/speaking/error states
+  - Interim transcription display with graceful cancellation
+  - Direct message submission bypassing DOM race conditions
+- ✅ Added UI components for voice input
+  - Microphone button with SVG icon in chat form
+  - Pulsing animation for listening state
+  - Status indicator below input field
+  - CSS styles for all voice states
+
+**Voice Input Now Works:** Click the microphone button in Chrome/Edge to speak your commands. Phase 2 (TTS providers) and Phase 3 (backend integration) planned for future work.
+
+### November 30, 2025 - Session Close Loading Overlay
+- ✅ Added loading overlay to Close Session button
+  - Shows "Generating post-session analysis... this can take a few minutes"
+  - Dismisses when analysis completes or on error
+  - Matches existing Create Campaign/Session loading pattern
+
 ### November 23, 2025 - Pixel-Perfect Banner Bridge System
 - ✅ Created automated banner gradient generator using Pillow
   - Extracts full edge columns from banner images (1024px height)
