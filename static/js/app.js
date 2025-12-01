@@ -9,6 +9,11 @@ class DnDApp {
         this.sessions = [];
         this.currentSession = null;
         this.websocket = null;
+        this.voiceClient = null;
+        this.partyPanelOpen = false;
+        
+        // Characters loaded from database
+        this.characters = [];
         
         this.init();
     }
@@ -16,8 +21,479 @@ class DnDApp {
     async init() {
         await this.loadWorlds();
         this.setupEventListeners();
+        this.initVoice();
+        this.initParty();
         this.showTab('campaigns');
         await this.refreshCampaigns();
+    }
+    
+    async initParty() {
+        // Load characters from database
+        await this.loadCharacters();
+        this.updateLivePartyDisplay();
+    }
+    
+    async loadCharacters() {
+        try {
+            const response = await this.apiRequest('/api/characters');
+            this.characters = (response.characters || []).map(char => ({
+                ...char,
+                isLive: false
+            }));
+        } catch (error) {
+            console.warn('Failed to load characters:', error);
+            this.characters = [];
+        }
+    }
+    
+    initVoice() {
+        if (typeof VoiceClient !== 'undefined') {
+            this.voiceClient = new VoiceClient(this);
+            
+            const micButton = document.getElementById('voice-mic-button');
+            if (micButton && !this.voiceClient.isAvailable()) {
+                micButton.disabled = true;
+                micButton.title = 'Voice input not supported in this browser';
+            }
+        }
+    }
+    
+    toggleVoice() {
+        if (!this.voiceClient) {
+            this.showAlert('Voice features are not available', 'error');
+            return;
+        }
+        
+        if (!this.voiceClient.isAvailable()) {
+            this.showAlert('Voice input is not supported in your browser. Try Chrome or Edge.', 'error');
+            return;
+        }
+        
+        this.voiceClient.toggleListening();
+    }
+
+    // Party Management Methods
+    togglePartyPanel() {
+        this.partyPanelOpen = !this.partyPanelOpen;
+        const panel = document.getElementById('party-panel');
+        const overlay = document.getElementById('party-overlay');
+        
+        if (this.partyPanelOpen) {
+            panel.classList.add('active');
+            overlay.classList.add('active');
+            this.renderCharacters();
+        } else {
+            panel.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+    }
+    
+    renderCharacters() {
+        const container = document.getElementById('character-list');
+        if (!container) return;
+        
+        if (this.characters.length === 0) {
+            container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted);">No characters yet. Add one to get started!</p>';
+            return;
+        }
+        
+        container.innerHTML = this.characters.map(char => `
+            <div class="character-card" onclick="app.toggleCharacterLive('${char.id}')">
+                <div class="character-card-actions">
+                    <button class="char-action-btn" onclick="event.stopPropagation(); app.showUpdateCharacterModal('${char.id}')" title="Update">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3Z"/>
+                        </svg>
+                    </button>
+                    <button class="char-action-btn char-action-delete" onclick="event.stopPropagation(); app.confirmDeleteCharacter('${char.id}', '${char.name.replace(/'/g, "\\'")}')" title="Delete">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                    </button>
+                </div>
+                <input type="checkbox" class="character-card-radio" 
+                       ${char.isLive ? 'checked' : ''} 
+                       onclick="event.stopPropagation(); app.toggleCharacterLive('${char.id}')">
+                <div class="character-card-name">${char.name}</div>
+                <div class="character-card-stat">
+                    <span class="character-card-stat-label">Class</span>
+                    <span class="character-card-stat-value">${char.class}</span>
+                </div>
+                <div class="character-card-stat">
+                    <span class="character-card-stat-label">Level</span>
+                    <span class="character-card-stat-value">${char.level}</span>
+                </div>
+                <div class="character-card-stat">
+                    <span class="character-card-stat-label">Race</span>
+                    <span class="character-card-stat-value">${char.race}</span>
+                </div>
+                <div class="character-card-stat">
+                    <span class="character-card-stat-label">HP</span>
+                    <span class="character-card-stat-value">${char.currentHp}/${char.maxHp}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    toggleCharacterLive(charId) {
+        const char = this.characters.find(c => c.id === charId);
+        if (char) {
+            char.isLive = !char.isLive;
+            this.renderCharacters();
+            this.updateLivePartyDisplay();
+        }
+    }
+    
+    updateLivePartyDisplay() {
+        const container = document.getElementById('live-party-display');
+        if (!container) return;
+        
+        const liveChars = this.characters.filter(c => c.isLive);
+        
+        if (liveChars.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        
+        container.innerHTML = liveChars.map(char => `
+            <div class="live-character-card">
+                <div class="live-character-info">
+                    <div class="live-character-name">${char.name}</div>
+                    <div class="live-character-class">${char.race} ${char.class} Level ${char.level}</div>
+                </div>
+                <div class="live-stat-box">
+                    <div class="live-stat-label">HP</div>
+                    <div class="live-stat-value">${char.currentHp}/${char.maxHp}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    confirmDeleteCharacter(charId, charName) {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 400px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3 style="color: var(--danger-color);">Delete Character</h3>
+                    <p style="margin-bottom: 20px;">Are you sure you want to delete <strong>${charName}</strong>? This cannot be undone.</p>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                        <button class="btn" style="background: var(--danger-color);" onclick="app.deleteCharacter('${charId}'); this.closest('[style*=fixed]').remove()">Delete</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    async deleteCharacter(charId) {
+        try {
+            await this.apiRequest(`/api/characters/${charId}`, { method: 'DELETE' });
+            this.characters = this.characters.filter(c => c.id !== charId);
+            this.renderCharacters();
+            this.updateLivePartyDisplay();
+            this.showAlert('Character deleted', 'success');
+        } catch (error) {
+            console.error('Failed to delete character:', error);
+            this.showAlert(error.message || 'Failed to delete character', 'error');
+        }
+    }
+    
+    showUpdateCharacterModal(charId) {
+        const char = this.characters.find(c => c.id === charId);
+        if (!char) return;
+        
+        const hasDDBSource = char.source === 'dndbeyond' && char.dndbeyond_id;
+        
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 450px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3>Update ${char.name}</h3>
+                    <p style="margin-bottom: 20px; color: var(--text-muted);">Choose how to update this character:</p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        ${hasDDBSource ? `
+                        <div class="card" style="cursor: pointer; margin-bottom: 0;" onclick="app.refreshCharacterFromDDB('${charId}'); this.closest('[style*=fixed]').remove();">
+                            <h4 style="color: var(--primary-accent); margin-bottom: 8px;">🔄 Refresh from D&D Beyond</h4>
+                            <p style="font-size: 0.9em;">Pull the latest data from your D&D Beyond character sheet (ID: ${char.dndbeyond_id}).</p>
+                        </div>
+                        ` : `
+                        <div class="card" style="margin-bottom: 0; opacity: 0.5;">
+                            <h4 style="color: var(--text-muted); margin-bottom: 8px;">🔄 Refresh from D&D Beyond</h4>
+                            <p style="font-size: 0.9em;">Not available - this character wasn't imported from D&D Beyond.</p>
+                        </div>
+                        `}
+                        
+                        <div class="card" style="cursor: pointer; margin-bottom: 0;" onclick="app.showUpdatePDFForm('${charId}'); this.closest('[style*=fixed]').remove();">
+                            <h4 style="color: var(--primary-accent); margin-bottom: 8px;">📄 Upload New PDF</h4>
+                            <p style="font-size: 0.9em;">Replace this character's data with a new PDF character sheet.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-20">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    showUpdatePDFForm(charId) {
+        const char = this.characters.find(c => c.id === charId);
+        if (!char) return;
+        
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 450px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3>Update ${char.name} from PDF</h3>
+                    <p style="margin-bottom: 20px; color: var(--text-muted);">Select a new PDF character sheet:</p>
+                    
+                    <div class="form-group">
+                        <input type="file" id="pdf-upload-input" class="form-input" accept=".pdf"
+                               style="padding: 10px;">
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                        <button class="btn" onclick="app.uploadPDF('${charId}')">Update Character</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    async refreshCharacterFromDDB(charId) {
+        try {
+            this.showLoading('Refreshing character from D&D Beyond...');
+            
+            const updatedChar = await this.apiRequest(`/api/characters/${charId}/refresh`, { method: 'POST' });
+            
+            const index = this.characters.findIndex(c => c.id === charId);
+            if (index !== -1) {
+                const wasLive = this.characters[index].isLive;
+                this.characters[index] = { ...updatedChar, isLive: wasLive };
+            }
+            
+            this.renderCharacters();
+            this.updateLivePartyDisplay();
+            this.showAlert(`${updatedChar.name} updated successfully!`, 'success');
+            
+        } catch (error) {
+            console.error('Failed to refresh character:', error);
+            this.showAlert(error.message || 'Failed to refresh character', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+    
+    showAddCharacterMenu() {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 450px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3>Add Character</h3>
+                    <p style="margin-bottom: 20px; color: var(--text-muted);">Choose how to add your character:</p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <div class="card" style="cursor: pointer; margin-bottom: 0;" onclick="app.showDDBImportForm(); this.closest('[style*=fixed]').remove();">
+                            <h4 style="color: var(--primary-accent); margin-bottom: 8px;">🔗 Import from D&D Beyond</h4>
+                            <p style="font-size: 0.9em;">Paste a D&D Beyond character URL or ID to import your character sheet automatically.</p>
+                        </div>
+                        
+                        <div class="card" style="cursor: pointer; margin-bottom: 0;" onclick="app.showPDFUploadForm(); this.closest('[style*=fixed]').remove();">
+                            <h4 style="color: var(--primary-accent); margin-bottom: 8px;">📄 Upload Character PDF</h4>
+                            <p style="font-size: 0.9em;">Upload a PDF character sheet to extract your character's stats.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-20">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    showDDBImportForm() {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 450px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3>Import from D&D Beyond</h3>
+                    <p style="margin-bottom: 20px; color: var(--text-muted);">Enter your character URL or ID:</p>
+                    
+                    <div class="form-group">
+                        <input type="text" id="ddb-import-input" class="form-input" 
+                               placeholder="https://dndbeyond.com/characters/115183470 or just 115183470">
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                        <button class="btn" onclick="app.importFromDDB()">Import Character</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById('ddb-import-input').focus();
+    }
+    
+    async importFromDDB() {
+        const input = document.getElementById('ddb-import-input');
+        const value = input?.value?.trim();
+        
+        if (!value) {
+            this.showAlert('Please enter a D&D Beyond character URL or ID', 'error');
+            return;
+        }
+        
+        // Extract character ID from URL or use directly if numeric
+        let charId = value;
+        const urlMatch = value.match(/characters\/(\d+)/);
+        if (urlMatch) {
+            charId = urlMatch[1];
+        }
+        
+        // Validate that we have a numeric ID
+        if (!/^\d+$/.test(charId)) {
+            this.showAlert('Invalid character ID. Please enter a numeric ID or a valid D&D Beyond URL.', 'error');
+            return;
+        }
+        
+        // Close modal first
+        document.querySelector('[style*="z-index: 1100"]')?.remove();
+        
+        try {
+            this.showLoading('Importing character from D&D Beyond...');
+            
+            const response = await this.apiRequest('/api/characters/import/dndbeyond', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    dndbeyond_id: charId,
+                    campaign_id: this.currentCampaign?.campaign_id || null
+                })
+            });
+            
+            // Add the imported character to our list
+            this.characters.push({
+                ...response,
+                isLive: false
+            });
+            
+            // Refresh the character display
+            if (this.partyPanelOpen) {
+                this.renderCharacters();
+            }
+            
+            this.showAlert(`Successfully imported ${response.name}!`, 'success');
+            
+        } catch (error) {
+            console.error('Failed to import character:', error);
+            this.showAlert(error.message || 'Failed to import character. Make sure the character is public on D&D Beyond.', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+    
+    showPDFUploadForm() {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1100; display: flex; justify-content: center; align-items: center; padding: 20px;" onclick="this.remove()">
+                <div class="card" style="max-width: 450px; width: 100%;" onclick="event.stopPropagation()">
+                    <h3>Upload Character PDF</h3>
+                    <p style="margin-bottom: 20px; color: var(--text-muted);">Select a PDF character sheet to upload:</p>
+                    
+                    <div class="form-group">
+                        <input type="file" id="pdf-upload-input" class="form-input" accept=".pdf"
+                               style="padding: 10px;">
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()">Cancel</button>
+                        <button class="btn" onclick="app.uploadPDF()">Upload & Extract</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    async uploadPDF(charIdToUpdate = null) {
+        const input = document.getElementById('pdf-upload-input');
+        const file = input?.files?.[0];
+        
+        if (!file) {
+            this.showAlert('Please select a PDF file', 'error');
+            return;
+        }
+        
+        document.querySelector('[style*="z-index: 1100"]')?.remove();
+        
+        try {
+            this.showLoading(charIdToUpdate ? 'Updating character from PDF...' : 'Importing character from PDF...');
+            
+            const formData = new FormData();
+            formData.append('pdf_file', file);
+            if (this.currentCampaign?.campaign_id) {
+                formData.append('campaign_id', this.currentCampaign.campaign_id);
+            }
+            
+            let url = '/api/characters/import/pdf';
+            if (charIdToUpdate) {
+                url = `/api/characters/${charIdToUpdate}/update-pdf`;
+            }
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) {
+                        errorMessage = errorData.error;
+                    }
+                } catch (e) {}
+                throw new Error(errorMessage);
+            }
+            
+            const character = await response.json();
+            
+            if (charIdToUpdate) {
+                const index = this.characters.findIndex(c => c.id === charIdToUpdate);
+                if (index !== -1) {
+                    const wasLive = this.characters[index].isLive;
+                    this.characters[index] = { ...character, isLive: wasLive };
+                }
+            } else {
+                this.characters.push({
+                    ...character,
+                    isLive: false
+                });
+            }
+            
+            if (this.partyPanelOpen) {
+                this.renderCharacters();
+            }
+            this.updateLivePartyDisplay();
+            
+            this.showAlert(`Successfully ${charIdToUpdate ? 'updated' : 'imported'} ${character.name}!`, 'success');
+            
+        } catch (error) {
+            console.error('Failed to upload PDF:', error);
+            this.showAlert(error.message || 'Failed to process PDF file.', 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
 
     // API Methods
@@ -32,13 +508,22 @@ class DnDApp {
             });
             
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // Try to get the error message from the response body
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) {
+                        errorMessage = errorData.error;
+                    }
+                } catch (e) {
+                    // Response wasn't JSON, use default message
+                }
+                throw new Error(errorMessage);
             }
             
             return await response.json();
         } catch (error) {
             console.error('API Error:', error);
-            this.showAlert('Error: ' + error.message, 'error');
             throw error;
         }
     }
@@ -135,6 +620,18 @@ class DnDApp {
                     this.sendMessage();
                 }
             });
+        }
+        
+        // Party panel button
+        const partyButton = document.getElementById('party-button');
+        if (partyButton) {
+            partyButton.addEventListener('click', () => this.togglePartyPanel());
+        }
+        
+        // Party overlay click to close
+        const partyOverlay = document.getElementById('party-overlay');
+        if (partyOverlay) {
+            partyOverlay.addEventListener('click', () => this.togglePartyPanel());
         }
     }
 
@@ -974,6 +1471,13 @@ class DnDApp {
         try {
             this.currentSession = await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${sessionId}`);
             
+            // Clear character selections when loading a new session
+            this.characters.forEach(c => c.isLive = false);
+            this.updateLivePartyDisplay();
+            if (this.partyPanelOpen) {
+                this.renderCharacters();
+            }
+            
             // Update last_played timestamp
             try {
                 await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/last_played`, {
@@ -1248,8 +1752,53 @@ class DnDApp {
         const textNode = document.createTextNode(content);
         messageDiv.appendChild(textNode);
         
+        // Add play button for DM messages with speakable intents
+        if (role === 'dm' && this.voiceClient && this.voiceClient.shouldSpeak(intent)) {
+            const playBtn = document.createElement('button');
+            playBtn.className = 'dm-play-btn';
+            playBtn.title = 'Listen to DM';
+            playBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+            playBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.playDMMessage(content, intent, playBtn);
+            };
+            messageDiv.appendChild(playBtn);
+        }
+        
         container.appendChild(messageDiv);
         this.scrollChatToBottom();
+    }
+    
+    playDMMessage(text, intent, button) {
+        if (!this.voiceClient) return;
+        
+        const playIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+        const pauseIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
+        
+        // If already playing, stop
+        if (button.classList.contains('playing')) {
+            this.voiceClient.stopPlayback();
+            return;
+        }
+        
+        // Stop any other playing audio and reset their buttons
+        document.querySelectorAll('.dm-play-btn.playing').forEach(btn => {
+            btn.classList.remove('playing');
+            btn.innerHTML = playIcon;
+        });
+        this.voiceClient.stopPlayback();
+        
+        // Mark as playing
+        button.classList.add('playing');
+        button.innerHTML = pauseIcon;
+        
+        // Callback resets button when playback completes or stops
+        const resetButton = () => {
+            button.classList.remove('playing');
+            button.innerHTML = playIcon;
+        };
+        
+        this.voiceClient.speakDMResponse(text, intent, resetButton);
     }
     
     getAgentLabel(intent) {
@@ -1321,7 +1870,23 @@ class DnDApp {
         if (!input || !input.value.trim()) return;
         
         const message = input.value.trim();
+        input.value = '';
         
+        this._sendMessageInternal(message);
+    }
+    
+    sendMessageFromVoice(text) {
+        if (!text || !text.trim()) return;
+        
+        const input = document.getElementById('chat-input');
+        if (input) {
+            input.value = '';
+        }
+        
+        this._sendMessageInternal(text.trim());
+    }
+    
+    _sendMessageInternal(message) {
         // Add user message to chat
         this.addChatMessage('user', message);
         
@@ -1336,8 +1901,6 @@ class DnDApp {
             // Fallback to REST API
             this.sendMessageREST(message);
         }
-        
-        input.value = '';
     }
 
     async sendMessageREST(message) {

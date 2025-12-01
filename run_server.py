@@ -32,6 +32,37 @@ from game_engine import (
 from main import strip_json_block
 from game_engine import extract_narrative_from_runresult
 
+# Import character management module
+from characters import (
+    import_character_from_dndbeyond,
+    import_character_from_pdf,
+    update_character_from_pdf,
+    list_characters,
+    get_character,
+    get_character_json,
+    delete_character,
+    refresh_character_from_dndbeyond,
+)
+
+# Import voice module
+from voice import (
+    get_voice_controller,
+    OpenAITTSProvider,
+    is_tts_enabled,
+    is_intent_speakable,
+)
+
+
+def initialize_voice():
+    """Initialize voice controller with TTS providers."""
+    controller = get_voice_controller()
+    openai_provider = OpenAITTSProvider(model="tts-1")
+    controller.register_tts_provider("openai", openai_provider)
+    return controller
+
+
+voice_controller = initialize_voice()
+
 # WebSocket connection manager
 class ConnectionManager:
     def __init__(self):
@@ -323,6 +354,52 @@ async def homepage(request):
         """
         return HTMLResponse(html)
 
+async def tts_endpoint(request):
+    """POST /api/tts - Generate speech from text"""
+    try:
+        if not is_tts_enabled():
+            return JSONResponse(
+                {"error": "TTS is not enabled. Set VOICE_TTS_ENABLED=true"},
+                status_code=503
+            )
+        
+        data = await request.json()
+        text = data.get("text", "")
+        intent = data.get("intent")
+        
+        if not text:
+            return JSONResponse({"error": "Text is required"}, status_code=400)
+        
+        if not is_intent_speakable(intent):
+            return JSONResponse(
+                {"error": f"Intent '{intent}' is not configured for TTS"},
+                status_code=400
+            )
+        
+        audio_data = await voice_controller.synthesize_full(
+            text=text,
+            intent=intent
+        )
+        
+        if not audio_data:
+            return JSONResponse(
+                {"error": "Failed to synthesize speech"},
+                status_code=500
+            )
+        
+        return Response(
+            content=audio_data,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "inline",
+                "Cache-Control": "no-cache"
+            }
+        )
+        
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 async def status(request):
     """API endpoint to check system status"""
     # Check if required environment variables are set
@@ -337,6 +414,188 @@ async def status(request):
     }
     
     return JSONResponse(status_data)
+
+
+# Character Management Endpoints
+async def import_dndbeyond_character_endpoint(request):
+    """POST /api/characters/import/dndbeyond - Import a character from D&D Beyond"""
+    import traceback
+    try:
+        data = await request.json()
+        dndbeyond_id = data.get("dndbeyond_id", "").strip()
+        campaign_id = data.get("campaign_id")
+        
+        if not dndbeyond_id:
+            return JSONResponse({"error": "dndbeyond_id is required"}, status_code=400)
+        
+        # Extract numeric ID from URL if full URL was provided
+        if "dndbeyond.com" in dndbeyond_id:
+            # Extract ID from URL like https://www.dndbeyond.com/characters/115183470
+            import re
+            match = re.search(r'/characters/(\d+)', dndbeyond_id)
+            if match:
+                dndbeyond_id = match.group(1)
+            else:
+                return JSONResponse({"error": "Could not extract character ID from URL"}, status_code=400)
+        
+        print(f"Importing character from D&D Beyond: {dndbeyond_id}")
+        character = await import_character_from_dndbeyond(dndbeyond_id, campaign_id)
+        print(f"Successfully imported character: {character.get('name', 'Unknown')}")
+        return JSONResponse(character, status_code=201)
+        
+    except ValueError as e:
+        print(f"ValueError importing character: {e}")
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        print(f"Error importing character: {e}")
+        traceback.print_exc()
+        error_msg = str(e)
+        if "403" in error_msg or "Forbidden" in error_msg:
+            return JSONResponse({
+                "error": "This character is private. Please go to your character on D&D Beyond, open Settings, and set Character Privacy to 'Public' before importing."
+            }, status_code=403)
+        if "404" in error_msg or "Not Found" in error_msg:
+            return JSONResponse({
+                "error": "Character not found. Please check the ID and make sure the character exists on D&D Beyond."
+            }, status_code=404)
+        return JSONResponse({"error": f"Failed to import character: {error_msg}"}, status_code=500)
+
+
+async def import_pdf_character_endpoint(request):
+    """POST /api/characters/import/pdf - Import a character from a PDF file"""
+    import traceback
+    try:
+        form = await request.form()
+        pdf_file = form.get("pdf_file")
+        campaign_id = form.get("campaign_id")
+        
+        if not pdf_file:
+            return JSONResponse({"error": "pdf_file is required"}, status_code=400)
+        
+        pdf_content = await pdf_file.read()
+        
+        if len(pdf_content) == 0:
+            return JSONResponse({"error": "PDF file is empty"}, status_code=400)
+        
+        print(f"Importing character from PDF ({len(pdf_content)} bytes)")
+        character = await import_character_from_pdf(pdf_content, campaign_id if campaign_id else None)
+        print(f"Successfully imported character from PDF: {character.get('name', 'Unknown')}")
+        return JSONResponse(character, status_code=201)
+        
+    except ValueError as e:
+        print(f"ValueError importing PDF character: {e}")
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        print(f"Error importing PDF character: {e}")
+        traceback.print_exc()
+        return JSONResponse({"error": f"Failed to import character from PDF: {str(e)}"}, status_code=500)
+
+
+async def update_character_from_pdf_endpoint(request):
+    """POST /api/characters/{character_id}/update-pdf - Update a character from a PDF file"""
+    import traceback
+    character_id = request.path_params["character_id"]
+    try:
+        form = await request.form()
+        pdf_file = form.get("pdf_file")
+        
+        if not pdf_file:
+            return JSONResponse({"error": "pdf_file is required"}, status_code=400)
+        
+        pdf_content = await pdf_file.read()
+        
+        if len(pdf_content) == 0:
+            return JSONResponse({"error": "PDF file is empty"}, status_code=400)
+        
+        print(f"Updating character {character_id} from PDF ({len(pdf_content)} bytes)")
+        character = await update_character_from_pdf(character_id, pdf_content)
+        
+        if not character:
+            return JSONResponse({"error": "Character not found"}, status_code=404)
+        
+        print(f"Successfully updated character from PDF: {character.get('name', 'Unknown')}")
+        return JSONResponse(character)
+        
+    except ValueError as e:
+        print(f"ValueError updating character from PDF: {e}")
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        print(f"Error updating character from PDF: {e}")
+        traceback.print_exc()
+        return JSONResponse({"error": f"Failed to update character from PDF: {str(e)}"}, status_code=500)
+
+
+async def get_characters_endpoint(request):
+    """GET /api/characters - List all characters"""
+    try:
+        campaign_id = request.query_params.get("campaign_id")
+        characters = await list_characters(campaign_id)
+        return JSONResponse({"characters": characters})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+async def get_character_endpoint(request):
+    """GET /api/characters/{character_id} - Get a specific character"""
+    character_id = request.path_params["character_id"]
+    try:
+        character = await get_character(character_id)
+        if not character:
+            return JSONResponse({"error": "Character not found"}, status_code=404)
+        return JSONResponse(character)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+async def get_character_full_json_endpoint(request):
+    """GET /api/characters/{character_id}/json - Get the full D&D Beyond JSON"""
+    character_id = request.path_params["character_id"]
+    try:
+        character_json = await get_character_json(character_id)
+        if not character_json:
+            return JSONResponse({"error": "Character not found"}, status_code=404)
+        return JSONResponse(character_json)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+async def delete_character_endpoint(request):
+    """DELETE /api/characters/{character_id} - Delete a character"""
+    character_id = request.path_params["character_id"]
+    try:
+        deleted = await delete_character(character_id)
+        if not deleted:
+            return JSONResponse({"error": "Character not found"}, status_code=404)
+        return JSONResponse({"success": True, "message": "Character deleted"})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+async def refresh_character_endpoint(request):
+    """POST /api/characters/{character_id}/refresh - Refresh character from D&D Beyond"""
+    import traceback
+    character_id = request.path_params["character_id"]
+    try:
+        character = await refresh_character_from_dndbeyond(character_id)
+        if not character:
+            return JSONResponse({"error": "Character not found"}, status_code=404)
+        return JSONResponse(character)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        print(f"Error refreshing character: {e}")
+        traceback.print_exc()
+        error_msg = str(e)
+        if "403" in error_msg or "Forbidden" in error_msg:
+            return JSONResponse({
+                "error": "This character is private. Please set it to Public on D&D Beyond before refreshing."
+            }, status_code=403)
+        if "404" in error_msg or "Not Found" in error_msg:
+            return JSONResponse({
+                "error": "Character not found on D&D Beyond. It may have been deleted."
+            }, status_code=404)
+        return JSONResponse({"error": f"Failed to refresh character: {error_msg}"}, status_code=500)
+
 
 # Routes configuration
 routes = [
@@ -361,6 +620,19 @@ routes = [
     
     # Game play
     Route('/api/campaigns/{campaign_id}/sessions/{session_id}/turn', play_turn_endpoint, methods=["POST"]),
+    
+    # Voice/TTS
+    Route('/api/tts', tts_endpoint, methods=["POST"]),
+    
+    # Character management
+    Route('/api/characters', get_characters_endpoint, methods=["GET"]),
+    Route('/api/characters/import/dndbeyond', import_dndbeyond_character_endpoint, methods=["POST"]),
+    Route('/api/characters/import/pdf', import_pdf_character_endpoint, methods=["POST"]),
+    Route('/api/characters/{character_id}', get_character_endpoint, methods=["GET"]),
+    Route('/api/characters/{character_id}', delete_character_endpoint, methods=["DELETE"]),
+    Route('/api/characters/{character_id}/refresh', refresh_character_endpoint, methods=["POST"]),
+    Route('/api/characters/{character_id}/update-pdf', update_character_from_pdf_endpoint, methods=["POST"]),
+    Route('/api/characters/{character_id}/json', get_character_full_json_endpoint, methods=["GET"]),
     
     # WebSocket for real-time chat
     WebSocketRoute('/ws/{campaign_id}/{session_id}', websocket_endpoint),

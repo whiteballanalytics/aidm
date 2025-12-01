@@ -1,8 +1,8 @@
-modules = ["python-3.11"]
+modules = ["python-3.11", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["cacert", "cargo", "freetype", "gitFull", "glibcLocales", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "rustc", "tcl", "tk", "zlib"]
+packages = ["SDL2", "SDL2_image", "SDL2_mixer", "SDL2_ttf", "cacert", "cargo", "fontconfig", "freetype", "gitFull", "glibcLocales", "gumbo", "harfbuzz", "jbig2dec", "lcms2", "libffi", "libiconv", "libimagequant", "libjpeg", "libjpeg_turbo", "libpng", "libtiff", "libuv", "libwebp", "libxcrypt", "mupdf", "openjpeg", "pgadmin4", "pkg-config", "portmidi", "rustc", "swig", "tcl", "tk", "xcbuild", "zlib"]
 
 [agent]
 expertMode = true
@@ -23,20 +23,20 @@ args = "DnD Server"
 name = "DnD Server"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python run_server.py"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3.11 run_server.py"
+waitForPort = 5000
 
 [[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 38839
+localPort = 33953
 externalPort = 3000
 
 [deployment]
@@ -47,3 +47,4 @@ run = ["python", "run_server.py"]
 
 [userenv.shared]
 USE_MULTI_AGENT_DM = "true"
+VOICE_TTS_ENABLED = "true"

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎲 D&D AI Dungeon Master</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=20251130-chat-fix">
+    <link rel="stylesheet" href="/static/css/style.css?v=20251130-char-actions">
 </head>
 <body>
     <div class="container">
@@ -138,8 +138,15 @@
 
             <!-- Play Mode Tab -->
             <div id="play-tab" class="tab-content">
-                <h2>Play Mode</h2>
-                <p>Interactive D&D gameplay with your AI Dungeon Master.</p>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div>
+                        <h2>Play Mode</h2>
+                        <p>Interactive D&D gameplay with your AI Dungeon Master.</p>
+                    </div>
+                    <button class="btn-party" id="party-button" title="Manage characters">
+                        👥 Manage Characters
+                    </button>
+                </div>
 
                 <div class="card-grid">
                     <div id="current-play-info" class="card">
@@ -147,6 +154,9 @@
                         <button class="btn btn-secondary" onclick="app.showTab('sessions')">Back to Sessions</button>
                     </div>
                 </div>
+
+                <!-- Live Character Display (below session card) -->
+                <div id="live-party-display" class="live-party-display"></div>
 
                 <div class="chat-container">
                     <div id="chat-messages" class="chat-messages show-badges">
@@ -156,7 +166,7 @@
                     </div>
                     
                     <div class="chat-input-area">
-                        <form id="chat-form" style="display: flex; width: 100%; gap: 15px;">
+                        <form id="chat-form" style="display: flex; width: 100%; gap: 15px; align-items: center;">
                             <input 
                                 type="text" 
                                 id="chat-input" 
@@ -164,8 +174,17 @@
                                 placeholder="Describe your action..."
                                 autocomplete="off"
                             >
+                            <button type="button" id="voice-mic-button" class="btn btn-voice" title="Click to speak" onclick="app.toggleVoice()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                                </svg>
+                            </button>
                             <button type="submit" class="btn">Send</button>
                         </form>
+                        <div id="voice-status" class="voice-status"></div>
                     </div>
                 </div>
 
@@ -184,7 +203,23 @@
         </div>
     </div>
 
+    <!-- Party Management Panel -->
+    <div id="party-overlay" class="party-overlay"></div>
+    <div id="party-panel" class="party-panel">
+        <div class="party-panel-header">
+            <h3>👥 Manage Characters</h3>
+            <button class="party-close-btn" onclick="app.togglePartyPanel()">&times;</button>
+        </div>
+        <div class="party-panel-content">
+            <button class="add-character-btn" onclick="app.showAddCharacterMenu()">+ Add Character</button>
+            <div id="character-list" class="character-cards-grid">
+                <!-- Character cards will be rendered here -->
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
-    <script src="/static/js/app.js?v=20251130-close-loading"></script>
+    <script src="/static/js/voice_client.js?v=20251130-tts"></script>
+    <script src="/static/js/app.js?v=20251130-char-actions"></script>
 </body>
 </html>
