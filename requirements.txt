@@ -52,3 +52,4 @@ pdfplumber
 pypdf
 cffi
 pytest
+pytest-asyncio
