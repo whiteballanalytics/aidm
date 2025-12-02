@@ -1,0 +1,77 @@
+merge_scene_patch(base_scene, patch_dict)
+Check suitability of the existing unit test and update if necessary
+
+test_extract_and_strip()
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+Include the following test cases:
+Valid JSON in markdown block → extracts dict
+Bare JSON (no markdown) → extracts dict
+Malformed JSON → returns None (not crash)
+No JSON present → returns None
+Multiple JSON blocks → extracts first one
+
+test_clip_recap_appends_under_limit()
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_clip_recap_truncates_from_front_when_over_limit
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_clip_recap_handles_none_summary
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_get_campaign_mem_store_creates_and_caches
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_upsert_writes_and_mirrors
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_upsert_skips_when_empty
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_upsert_without_mirror_does_not_write_locally
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_upsert_does_not_mutate_input
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_upload_filename_is_json_and_campaign_tagged
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_uploaded_payload_matches_mirror
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_roll_parses_and_sums
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+test_roll_bad_input
+Check that this function is still relevant and used
+Check suitability of the existing unit test and update if necessary
+
+SceneState.model_dump() and JSON serialization
+Input: SceneState object
+Output: Dict/JSON string
+Tests:
+All fields serialize without error
+JSON can be deserialized back to identical SceneState
+Null/None values handled consistently
+Any other deterministic test you think is necessary
+
+extract_narrative_from_runresult(result_object)
+Input: Agent Runner result object
+Output: String (narrative text)
+Tests:
+Result with .final_output field → extracts that
+Result without .final_output → converts to string
+Empty result → returns empty string or default
