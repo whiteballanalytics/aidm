@@ -39,6 +39,10 @@ externalPort = 80
 localPort = 33953
 externalPort = 3000
 
+[[ports]]
+localPort = 34887
+externalPort = 3001
+
 [deployment]
 deploymentTarget = "vm"
 run = ["python", "run_server.py"]
@@ -48,3 +52,6 @@ run = ["python", "run_server.py"]
 [userenv.shared]
 USE_MULTI_AGENT_DM = "true"
 VOICE_TTS_ENABLED = "true"
+
+[userenv.development]
+EVAL_LOGGING_ENABLED = "true"

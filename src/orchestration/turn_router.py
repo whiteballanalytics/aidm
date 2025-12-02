@@ -9,6 +9,7 @@ import os
 from typing import Optional, Dict, Any
 from agents import Runner, Agent
 from library.logginghooks import LocalRunLogger
+from library.eval_logger import log_router_prompt
 from src.game_engine import extract_update_payload, strip_json_block, extract_narrative_from_runresult
 
 
@@ -125,6 +126,9 @@ async def orchestrate_turn(
 Context (recent events):
 {router_context}...
 """
+    
+    # Log full router prompt for eval capture (when enabled)
+    log_router_prompt(router_prompt, user_input, session_id)
     
     try:
         router_result = await Runner.run(router_agent, router_prompt, hooks=LocalRunLogger())
