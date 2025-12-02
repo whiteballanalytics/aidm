@@ -64,16 +64,23 @@ The system is built around a multi-agent orchestration pattern, featuring specia
 - **December 2025**: Consolidated `main.py` into `game_engine.py` - all game logic, utility functions, and models now live in `game_engine.py`. The legacy console runner (`main.py`) was deprecated and removed.
 
 ### Testing
-- **Test Framework**: pytest with pythonpath configured in `pyproject.toml`
-- **Test Structure**: Organized under `tests/unit/` with logical grouping by functionality
+- **Standards Document**: See `tests/TESTING.md` for complete testing standards and guidelines
+- **Test Framework**: pytest with pytest-asyncio, pythonpath configured in `pyproject.toml`
+- **Test Structure**: Unit tests under `tests/unit/` with logical grouping by functionality
 - **Test Modules**:
     - `test_dice.py`: Dice rolling mechanics (roll_impl function)
     - `test_helpers.py`: Helper functions (merge_scene_patch, extract_update_payload, strip_json_block, clip_recap)
     - `test_memory.py`: Memory store operations (get_campaign_mem_store, upsert_memory_writes)
     - `test_models.py`: Pydantic model serialization (SceneState)
     - `test_narrative.py`: Narrative extraction (extract_narrative_from_runresult)
+    - `test_orchestration.py`: Multi-agent routing (orchestrate_turn, build_agent_context)
+    - `test_sessions.py`: Session lifecycle (load_session, list_sessions, get_active_session, close_session)
+    - `test_campaigns.py`: Campaign management (load_campaign, list_campaigns, update_last_played)
+    - `test_config.py`: Configuration and logging (get_available_worlds, jl_write)
 - **Design Decisions**:
     - Tests document actual game engine behavior (not theoretical specs)
+    - Every test has a one-sentence docstring with function name and summary
+    - Unit tests are deterministic; LLM calls are mocked
     - `extract_update_payload` requires markdown-fenced JSON (bare JSON returns None)
     - Multiple JSON blocks: extracts the last block (design choice)
 
