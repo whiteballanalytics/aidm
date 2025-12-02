@@ -179,53 +179,64 @@ class DnDApp {
     setActionMode(mode) {
         this.actionMode = mode;
         
-        // Update button states
-        document.querySelectorAll('.action-mode-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.mode === mode);
-        });
-        
-        // Show/hide character selector
-        const selector = document.getElementById('character-selector');
-        if (selector) {
-            selector.style.display = mode === 'character' ? 'flex' : 'none';
-        }
-        
-        // Update placeholder text based on mode
-        const input = document.getElementById('chat-input');
-        if (input) {
-            const placeholders = {
-                'party': 'Describe your party\'s action...',
-                'character': 'Describe your character\'s action...',
-                'ask_dm': 'Ask the DM a question...'
-            };
-            input.placeholder = placeholders[mode] || 'Describe your action...';
-        }
-        
         // Reset character selection when switching away from character mode
         if (mode !== 'character') {
             this.actionCharacterId = null;
         }
     }
     
-    updateActionCharacterSelect() {
-        const select = document.getElementById('action-character-select');
-        if (!select) return;
+    showCharacterPopup(event) {
+        event.stopPropagation();
+        
+        const popup = document.getElementById('character-popup');
+        if (!popup) return;
         
         const liveChars = this.characters.filter(c => c.isLive);
         
-        select.innerHTML = '<option value="">Select character...</option>';
-        liveChars.forEach(char => {
-            const option = document.createElement('option');
-            option.value = char.id;
-            option.textContent = `${char.name} (${char.class})`;
-            select.appendChild(option);
-        });
-        
-        // Reset selection if current character is no longer live
-        if (this.actionCharacterId && !liveChars.find(c => c.id === this.actionCharacterId)) {
-            this.actionCharacterId = null;
-            select.value = '';
+        if (liveChars.length === 0) {
+            popup.innerHTML = '<div class="character-popup-empty">No characters in party. Add characters via Manage Characters.</div>';
+        } else {
+            popup.innerHTML = liveChars.map(char => `
+                <button type="button" class="character-popup-item" data-char-id="${char.id}" data-char-name="${char.name}">
+                    ${char.name} (${char.class})
+                </button>
+            `).join('');
+            
+            popup.querySelectorAll('.character-popup-item').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    this.actionMode = 'character';
+                    this.actionCharacterId = btn.dataset.charId;
+                    this.hideCharacterPopup();
+                    this.sendMessage();
+                });
+            });
         }
+        
+        // Position popup above the "As..." button
+        const btn = document.getElementById('send-as-character');
+        const inputArea = document.querySelector('.chat-input-area');
+        if (btn && inputArea) {
+            const btnRect = btn.getBoundingClientRect();
+            const areaRect = inputArea.getBoundingClientRect();
+            
+            // Position popup to the left of the button, above the input area
+            popup.style.right = (areaRect.right - btnRect.right) + 'px';
+            popup.style.bottom = (areaRect.bottom - btnRect.top + 5) + 'px';
+            popup.style.left = 'auto';
+        }
+        
+        popup.style.display = 'block';
+    }
+    
+    hideCharacterPopup() {
+        const popup = document.getElementById('character-popup');
+        if (popup) {
+            popup.style.display = 'none';
+        }
+    }
+    
+    updateActionCharacterSelect() {
+        // Legacy function - kept for compatibility but popup is now used
     }
     
     getActionContext() {
@@ -680,12 +691,15 @@ class DnDApp {
             });
         }
 
-        // Chat input: Enter to send, Shift+Enter for newline, auto-expand
+        // Chat input: Enter to send as party (default), Shift+Enter for newline
         const chatInput = document.getElementById('chat-input');
         if (chatInput) {
             chatInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
+                    // Enter always sends as party (default action)
+                    this.actionMode = 'party';
+                    this.actionCharacterId = null;
                     this.sendMessage();
                 }
             });
@@ -708,21 +722,40 @@ class DnDApp {
             partyOverlay.addEventListener('click', () => this.togglePartyPanel());
         }
         
-        // Action mode buttons
-        document.querySelectorAll('.action-mode-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const mode = e.currentTarget.dataset.mode;
-                this.setActionMode(mode);
-            });
-        });
-        
-        // Character selector for character mode
-        const characterSelect = document.getElementById('action-character-select');
-        if (characterSelect) {
-            characterSelect.addEventListener('change', (e) => {
-                this.actionCharacterId = e.target.value || null;
+        // Stacked send buttons
+        const sendAsParty = document.getElementById('send-as-party');
+        if (sendAsParty) {
+            sendAsParty.addEventListener('click', () => {
+                this.actionMode = 'party';
+                this.actionCharacterId = null;
+                this.sendMessage();
             });
         }
+        
+        const sendAskDm = document.getElementById('send-ask-dm');
+        if (sendAskDm) {
+            sendAskDm.addEventListener('click', () => {
+                this.actionMode = 'ask_dm';
+                this.actionCharacterId = null;
+                this.sendMessage();
+            });
+        }
+        
+        const sendAsCharacter = document.getElementById('send-as-character');
+        if (sendAsCharacter) {
+            sendAsCharacter.addEventListener('click', (e) => {
+                this.showCharacterPopup(e);
+            });
+        }
+        
+        // Close character popup on outside click
+        document.addEventListener('click', (e) => {
+            const popup = document.getElementById('character-popup');
+            const asBtn = document.getElementById('send-as-character');
+            if (popup && !popup.contains(e.target) && e.target !== asBtn) {
+                this.hideCharacterPopup();
+            }
+        });
     }
 
     showTab(tabName) {
@@ -2023,17 +2056,17 @@ class DnDApp {
     }
 
     autoExpandTextarea(textarea) {
-        // Reset height to auto to get the correct scrollHeight
+        const MIN_HEIGHT = 100;
+        const MAX_HEIGHT = 200;
         textarea.style.height = 'auto';
-        // Set height to scrollHeight, but cap at max-height (handled by CSS)
-        const newHeight = Math.min(textarea.scrollHeight, 150);
+        const newHeight = Math.max(MIN_HEIGHT, Math.min(textarea.scrollHeight, MAX_HEIGHT));
         textarea.style.height = newHeight + 'px';
     }
     
     resetTextareaHeight() {
         const input = document.getElementById('chat-input');
         if (input) {
-            input.style.height = 'auto';
+            input.style.height = '100px';
         }
     }
 

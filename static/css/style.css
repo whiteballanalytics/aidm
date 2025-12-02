@@ -358,7 +358,7 @@ body {
 
 .world-preview-empty {
     color: var(--text-muted);
-    text-align: center;
+    text-align: left;
     padding: 20px;
 }
 
@@ -549,12 +549,94 @@ body {
     padding: 15px 20px 20px 20px;
     background: var(--card-bg);
     border-top: 2px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    position: relative;
 }
 
-/* Action mode buttons */
+.chat-input-row {
+    display: flex;
+    gap: 15px;
+    align-items: stretch;
+}
+
+.chat-input-left {
+    flex: 1;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.chat-send-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 110px;
+}
+
+.btn-send-stacked {
+    width: 100%;
+    padding: 8px 14px;
+    font-size: 0.9em;
+    border-radius: 8px;
+    background: var(--card-bg);
+    border: 2px solid var(--border-color);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-send-stacked:hover {
+    border-color: var(--primary-accent);
+    color: var(--primary-accent);
+}
+
+.btn-send-stacked.btn-primary {
+    background: var(--primary-accent);
+    border-color: var(--primary-accent);
+    color: var(--background);
+}
+
+.btn-send-stacked.btn-primary:hover {
+    background: var(--secondary-accent);
+    border-color: var(--secondary-accent);
+}
+
+/* Character popup for "As..." button */
+.character-popup {
+    position: absolute;
+    z-index: 1200;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    padding: 8px 0;
+    min-width: 180px;
+}
+
+.character-popup-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: background 0.15s ease;
+}
+
+.character-popup-item:hover {
+    background: var(--border-color);
+}
+
+.character-popup-empty {
+    padding: 12px 16px;
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.9em;
+}
+
+/* Legacy action mode buttons - kept for compatibility */
 .action-mode-row {
     display: flex;
     align-items: center;
@@ -621,8 +703,8 @@ body {
     font-family: inherit;
     resize: none;
     overflow-y: auto;
-    min-height: 44px;
-    max-height: 150px;
+    min-height: 100px;
+    max-height: 200px;
     line-height: 1.4;
 }
 
