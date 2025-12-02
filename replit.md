@@ -51,7 +51,22 @@ The system is built around a multi-agent orchestration pattern, featuring specia
     - `config/`: Configuration files.
     - `mirror/`: Persistent local storage for campaigns, sessions, and memory.
     - `prompts/`: System prompts for AI agents.
+    - `tests/unit/`: Unit tests for core game engine functions.
 - **Environment Variables**: For sensitive configurations like OpenAI API keys.
+
+### Testing
+- **Test Framework**: pytest with pythonpath configured in `pyproject.toml`
+- **Test Structure**: Organized under `tests/unit/` with logical grouping by functionality
+- **Test Modules**:
+    - `test_dice.py`: Dice rolling mechanics (roll_impl function)
+    - `test_helpers.py`: Helper functions (merge_scene_patch, extract_update_payload, strip_json_block, clip_recap)
+    - `test_memory.py`: Memory store operations (get_campaign_mem_store, upsert_memory_writes)
+    - `test_models.py`: Pydantic model serialization (SceneState)
+    - `test_narrative.py`: Narrative extraction (extract_narrative_from_runresult)
+- **Design Decisions**:
+    - Tests document actual game engine behavior (not theoretical specs)
+    - `extract_update_payload` requires markdown-fenced JSON (bare JSON returns None)
+    - Multiple JSON blocks: extracts the last block (design choice)
 
 ## External Dependencies
 - **OpenAI API**: Used for AI agents (DM responses, specialized agents), vector databases (lore, campaign memory), and Text-to-Speech (TTS). Requires `OPENAI_API_KEY_AGENT` and `OPENAI_API_KEY_VDB`.
