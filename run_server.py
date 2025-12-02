@@ -207,7 +207,17 @@ async def play_turn_endpoint(request):
         user_input = data.get("input", "")
         user_id = data.get("user_id", "web_user")
         
-        result = await play_turn(campaign_id, session_id, user_input, user_id)
+        # Action context: mode (party/character/ask_dm) and optional character
+        action_mode = data.get("action_mode", "party")
+        character_id = data.get("character_id")
+        character_name = data.get("character_name")
+        
+        result = await play_turn(
+            campaign_id, session_id, user_input, user_id,
+            action_mode=action_mode,
+            character_id=character_id,
+            character_name=character_name
+        )
         
         # Parse DM response to show only user-facing content (for REST fallback)
         clean_response = extract_narrative_from_runresult(result["dm_response"])
@@ -244,6 +254,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 user_input = data.get("input", "")
                 user_id = data.get("user_id", "web_user")
                 
+                # Action context: mode (party/character/ask_dm) and optional character
+                action_mode = data.get("action_mode", "party")
+                character_id = data.get("character_id")
+                character_name = data.get("character_name")
+                
                 try:
                     # Send "thinking" status
                     await manager.send_personal_message({
@@ -252,7 +267,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     }, session_key)
                     
                     # Process the turn
-                    result = await play_turn(campaign_id, session_id, user_input, user_id)
+                    result = await play_turn(
+                        campaign_id, session_id, user_input, user_id,
+                        action_mode=action_mode,
+                        character_id=character_id,
+                        character_name=character_name
+                    )
                     
                     # Parse DM response to show only user-facing content
                     clean_response = extract_narrative_from_runresult(result["dm_response"])

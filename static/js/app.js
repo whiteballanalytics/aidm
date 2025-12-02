@@ -15,6 +15,10 @@ class DnDApp {
         // Characters loaded from database
         this.characters = [];
         
+        // Action mode: 'party', 'character', or 'ask_dm'
+        this.actionMode = 'party';
+        this.actionCharacterId = null;
+        
         this.init();
     }
 
@@ -152,21 +156,86 @@ class DnDApp {
         
         if (liveChars.length === 0) {
             container.innerHTML = '';
-            return;
+        } else {
+            container.innerHTML = liveChars.map(char => `
+                <div class="live-character-card">
+                    <div class="live-character-info">
+                        <div class="live-character-name">${char.name}</div>
+                        <div class="live-character-class">${char.race} ${char.class} Level ${char.level}</div>
+                    </div>
+                    <div class="live-stat-box">
+                        <div class="live-stat-label">HP</div>
+                        <div class="live-stat-value">${char.currentHp}/${char.maxHp}</div>
+                    </div>
+                </div>
+            `).join('');
         }
         
-        container.innerHTML = liveChars.map(char => `
-            <div class="live-character-card">
-                <div class="live-character-info">
-                    <div class="live-character-name">${char.name}</div>
-                    <div class="live-character-class">${char.race} ${char.class} Level ${char.level}</div>
-                </div>
-                <div class="live-stat-box">
-                    <div class="live-stat-label">HP</div>
-                    <div class="live-stat-value">${char.currentHp}/${char.maxHp}</div>
-                </div>
-            </div>
-        `).join('');
+        // Also update the action character selector
+        this.updateActionCharacterSelect();
+    }
+    
+    // Action Mode Methods
+    setActionMode(mode) {
+        this.actionMode = mode;
+        
+        // Update button states
+        document.querySelectorAll('.action-mode-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+        
+        // Show/hide character selector
+        const selector = document.getElementById('character-selector');
+        if (selector) {
+            selector.style.display = mode === 'character' ? 'flex' : 'none';
+        }
+        
+        // Update placeholder text based on mode
+        const input = document.getElementById('chat-input');
+        if (input) {
+            const placeholders = {
+                'party': 'Describe your party\'s action...',
+                'character': 'Describe your character\'s action...',
+                'ask_dm': 'Ask the DM a question...'
+            };
+            input.placeholder = placeholders[mode] || 'Describe your action...';
+        }
+        
+        // Reset character selection when switching away from character mode
+        if (mode !== 'character') {
+            this.actionCharacterId = null;
+        }
+    }
+    
+    updateActionCharacterSelect() {
+        const select = document.getElementById('action-character-select');
+        if (!select) return;
+        
+        const liveChars = this.characters.filter(c => c.isLive);
+        
+        select.innerHTML = '<option value="">Select character...</option>';
+        liveChars.forEach(char => {
+            const option = document.createElement('option');
+            option.value = char.id;
+            option.textContent = `${char.name} (${char.class})`;
+            select.appendChild(option);
+        });
+        
+        // Reset selection if current character is no longer live
+        if (this.actionCharacterId && !liveChars.find(c => c.id === this.actionCharacterId)) {
+            this.actionCharacterId = null;
+            select.value = '';
+        }
+    }
+    
+    getActionContext() {
+        return {
+            action_mode: this.actionMode,
+            character_id: this.actionMode === 'character' ? this.actionCharacterId : null,
+            character_name: this.actionMode === 'character' && this.actionCharacterId 
+                ? this.characters.find(c => c.id === this.actionCharacterId)?.name 
+                : null
+        };
     }
     
     confirmDeleteCharacter(charId, charName) {
@@ -611,14 +680,19 @@ class DnDApp {
             });
         }
 
-        // Chat input enter key
+        // Chat input: Enter to send, Shift+Enter for newline, auto-expand
         const chatInput = document.getElementById('chat-input');
         if (chatInput) {
-            chatInput.addEventListener('keypress', (e) => {
+            chatInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     this.sendMessage();
                 }
+            });
+            
+            // Auto-expand textarea as user types
+            chatInput.addEventListener('input', () => {
+                this.autoExpandTextarea(chatInput);
             });
         }
         
@@ -632,6 +706,22 @@ class DnDApp {
         const partyOverlay = document.getElementById('party-overlay');
         if (partyOverlay) {
             partyOverlay.addEventListener('click', () => this.togglePartyPanel());
+        }
+        
+        // Action mode buttons
+        document.querySelectorAll('.action-mode-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const mode = e.currentTarget.dataset.mode;
+                this.setActionMode(mode);
+            });
+        });
+        
+        // Character selector for character mode
+        const characterSelect = document.getElementById('action-character-select');
+        if (characterSelect) {
+            characterSelect.addEventListener('change', (e) => {
+                this.actionCharacterId = e.target.value || null;
+            });
         }
     }
 
@@ -694,7 +784,7 @@ class DnDApp {
         if (!panel) return;
         
         if (!worldName) {
-            panel.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Select a world above to see its description</p>';
+            panel.innerHTML = '<p class="world-preview-empty">Select a world above to see its description</p>';
             return;
         }
 
@@ -702,19 +792,19 @@ class DnDApp {
         const world = this.worlds[worldName];
         if (world && world.description) {
             panel.innerHTML = `
-                <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                    <h4 style="margin-top: 0; color: #2c3e50;">${worldName}</h4>
-                    <p style="margin-bottom: 15px;">${world.description}</p>
-                    <div>
+                <div class="world-preview-content">
+                    <h4 class="world-preview-title">${worldName}</h4>
+                    <p class="world-preview-description">${world.description}</p>
+                    <div class="world-preview-features">
                         <strong>Key Features:</strong>
-                        <ul style="margin: 10px 0 0 20px;">
+                        <ul>
                             ${world.features ? world.features.map(feature => `<li>${feature}</li>`).join('') : '<li>No features available</li>'}
                         </ul>
                     </div>
                 </div>
             `;
         } else {
-            panel.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">World description not available</p>';
+            panel.innerHTML = '<p class="world-preview-empty">World description not available</p>';
         }
     }
 
@@ -1871,6 +1961,7 @@ class DnDApp {
         
         const message = input.value.trim();
         input.value = '';
+        this.resetTextareaHeight();
         
         this._sendMessageInternal(message);
     }
@@ -1881,12 +1972,16 @@ class DnDApp {
         const input = document.getElementById('chat-input');
         if (input) {
             input.value = '';
+            this.resetTextareaHeight();
         }
         
         this._sendMessageInternal(text.trim());
     }
     
     _sendMessageInternal(message) {
+        // Get action context (mode and optional character)
+        const actionContext = this.getActionContext();
+        
         // Add user message to chat
         this.addChatMessage('user', message);
         
@@ -1895,22 +1990,26 @@ class DnDApp {
             this.websocket.send(JSON.stringify({
                 type: 'play_turn',
                 input: message,
-                user_id: 'web_user'
+                user_id: 'web_user',
+                ...actionContext
             }));
         } else {
             // Fallback to REST API
-            this.sendMessageREST(message);
+            this.sendMessageREST(message, actionContext);
         }
     }
 
-    async sendMessageREST(message) {
+    async sendMessageREST(message, actionContext = null) {
         try {
+            const payload = {
+                input: message,
+                user_id: 'web_user',
+                ...(actionContext || this.getActionContext())
+            };
+            
             const result = await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${this.currentSession.session_id}/turn`, {
                 method: 'POST',
-                body: JSON.stringify({
-                    input: message,
-                    user_id: 'web_user'
-                })
+                body: JSON.stringify(payload)
             });
             
             this.addChatMessage('dm', result.dm_response, result.intent_used);
@@ -1920,6 +2019,21 @@ class DnDApp {
             }
         } catch (error) {
             this.addChatMessage('system', 'Failed to send message. Please try again.');
+        }
+    }
+
+    autoExpandTextarea(textarea) {
+        // Reset height to auto to get the correct scrollHeight
+        textarea.style.height = 'auto';
+        // Set height to scrollHeight, but cap at max-height (handled by CSS)
+        const newHeight = Math.min(textarea.scrollHeight, 150);
+        textarea.style.height = newHeight + 'px';
+    }
+    
+    resetTextareaHeight() {
+        const input = document.getElementById('chat-input');
+        if (input) {
+            input.style.height = 'auto';
         }
     }
 

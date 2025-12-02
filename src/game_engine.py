@@ -682,8 +682,26 @@ async def close_session(campaign_id: str, session_id: str) -> dict:
     return session
 
 # Game play functions
-async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id: str = "web_user") -> dict:
-    """Process a single turn of gameplay."""
+async def play_turn(
+    campaign_id: str,
+    session_id: str,
+    user_input: str,
+    user_id: str = "web_user",
+    action_mode: str = "party",
+    character_id: Optional[str] = None,
+    character_name: Optional[str] = None
+) -> dict:
+    """Process a single turn of gameplay.
+    
+    Args:
+        campaign_id: Campaign identifier
+        session_id: Session identifier
+        user_input: Player's input text
+        user_id: User identifier
+        action_mode: 'party', 'character', or 'ask_dm'
+        character_id: Optional character ID when action_mode='character'
+        character_name: Optional character name when action_mode='character'
+    """
 
     # Load session and campaign
     session = await load_session(campaign_id, session_id)
@@ -753,12 +771,15 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
         # Import orchestrator (lazy import to avoid circular dependencies)
         from src.orchestration.turn_router import orchestrate_turn
         
-        # Build session context for orchestrator
+        # Build session context for orchestrator (includes action context for future prompt engineering)
         session_context = {
             "session_plan": session_plan,
             "scene_state": scene_state,
             "recent_recap": recent_recap,
-            "dm_input": dm_input
+            "dm_input": dm_input,
+            "action_mode": action_mode,
+            "character_id": character_id,
+            "character_name": character_name
         }
         
         # Route through multi-agent orchestrator

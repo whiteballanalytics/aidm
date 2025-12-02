@@ -166,14 +166,32 @@
                     </div>
                     
                     <div class="chat-input-area">
-                        <form id="chat-form" style="display: flex; width: 100%; gap: 15px; align-items: center;">
-                            <input 
-                                type="text" 
+                        <div class="action-mode-row">
+                            <div class="action-mode-buttons">
+                                <button type="button" class="action-mode-btn active" data-mode="party" title="Act as the whole party">
+                                    👥 Party
+                                </button>
+                                <button type="button" class="action-mode-btn" data-mode="character" title="Act as a specific character">
+                                    🧙 Character
+                                </button>
+                                <button type="button" class="action-mode-btn" data-mode="ask_dm" title="Ask the DM a question">
+                                    ❓ Ask DM
+                                </button>
+                            </div>
+                            <div id="character-selector" class="character-selector" style="display: none;">
+                                <select id="action-character-select" class="action-character-select">
+                                    <option value="">Select character...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <form id="chat-form" style="display: flex; width: 100%; gap: 15px; align-items: flex-end;">
+                            <textarea 
                                 id="chat-input" 
                                 class="chat-input" 
                                 placeholder="Describe your action..."
                                 autocomplete="off"
-                            >
+                                rows="1"
+                            ></textarea>
                             <button type="button" id="voice-mic-button" class="btn btn-voice" title="Click to speak" onclick="app.toggleVoice()">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
