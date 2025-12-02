@@ -694,7 +694,7 @@ class DnDApp {
         if (!panel) return;
         
         if (!worldName) {
-            panel.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Select a world above to see its description</p>';
+            panel.innerHTML = '<p class="world-preview-placeholder">Select a world above to see its description.</p>';
             return;
         }
 
@@ -702,19 +702,19 @@ class DnDApp {
         const world = this.worlds[worldName];
         if (world && world.description) {
             panel.innerHTML = `
-                <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                    <h4 style="margin-top: 0; color: #2c3e50;">${worldName}</h4>
-                    <p style="margin-bottom: 15px;">${world.description}</p>
+                <div class="world-preview-content">
+                    <h4>${worldName}</h4>
+                    <p>${world.description}</p>
                     <div>
                         <strong>Key Features:</strong>
-                        <ul style="margin: 10px 0 0 20px;">
+                        <ul>
                             ${world.features ? world.features.map(feature => `<li>${feature}</li>`).join('') : '<li>No features available</li>'}
                         </ul>
                     </div>
                 </div>
             `;
         } else {
-            panel.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">World description not available</p>';
+            panel.innerHTML = '<p class="world-preview-placeholder">World description not available.</p>';
         }
     }
 
