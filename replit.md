@@ -48,11 +48,20 @@ The system is built around a multi-agent orchestration pattern, featuring specia
 ### System Design Choices
 - **Directory Structure**:
     - `src/`: Main application code.
+        - `game_engine.py`: Core game logic, campaign/session management, AI agents, and utility functions.
+        - `library/`: Reusable modules (vectorstores, eval logging, session review).
+        - `orchestration/`: Multi-agent router system for specialized DM responses.
+        - `characters.py`: Character management (D&D Beyond import, PDF parsing).
+        - `voice.py`: TTS/STT voice capabilities.
     - `config/`: Configuration files.
     - `mirror/`: Persistent local storage for campaigns, sessions, and memory.
     - `prompts/`: System prompts for AI agents.
     - `tests/unit/`: Unit tests for core game engine functions.
+    - `run_server.py`: Web server entry point (Starlette/Uvicorn).
 - **Environment Variables**: For sensitive configurations like OpenAI API keys.
+
+### Recent Changes
+- **December 2025**: Consolidated `main.py` into `game_engine.py` - all game logic, utility functions, and models now live in `game_engine.py`. The legacy console runner (`main.py`) was deprecated and removed.
 
 ### Testing
 - **Test Framework**: pytest with pythonpath configured in `pyproject.toml`

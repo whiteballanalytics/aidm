@@ -2,8 +2,7 @@
 """Unit tests for helper functions: merge_scene_patch, extract_update_payload, strip_json_block, clip_recap."""
 
 import json
-from game_engine import SceneState, merge_scene_patch, extract_update_payload, strip_json_block
-from main import clip_recap
+from game_engine import SceneState, merge_scene_patch, extract_update_payload, strip_json_block, clip_recap
 
 
 def test_merge_scene_patch_replaces_only_provided_fields():

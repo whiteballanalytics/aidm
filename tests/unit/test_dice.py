@@ -1,13 +1,13 @@
 # tests/unit/test_dice.py
 """Unit tests for dice rolling function roll_impl."""
 
-from main import roll_impl
+from game_engine import roll_impl
 
 
 def test_roll_parses_and_sums_basic(monkeypatch):
     """Tests roll_impl: parses 2d6+1 formula and sums correctly."""
     seq = iter([3, 4])
-    monkeypatch.setattr("main.random.randint", lambda a, b: next(seq))
+    monkeypatch.setattr("game_engine.random.randint", lambda a, b: next(seq))
     out = roll_impl("2d6+1")
     
     assert out["rolls"] == [3, 4]
@@ -18,7 +18,7 @@ def test_roll_parses_and_sums_basic(monkeypatch):
 def test_roll_parses_and_sums_larger_modifier(monkeypatch):
     """Tests roll_impl: parses formula with larger modifier."""
     seq = iter([5, 1])
-    monkeypatch.setattr("main.random.randint", lambda a, b: next(seq))
+    monkeypatch.setattr("game_engine.random.randint", lambda a, b: next(seq))
     out = roll_impl("2d6+8")
     
     assert out["rolls"] == [5, 1]
@@ -29,7 +29,7 @@ def test_roll_parses_and_sums_larger_modifier(monkeypatch):
 def test_roll_parses_and_sums_negative_modifier(monkeypatch):
     """Tests roll_impl: parses formula with negative modifier and spaces."""
     seq = iter([1, 1])
-    monkeypatch.setattr("main.random.randint", lambda a, b: next(seq))
+    monkeypatch.setattr("game_engine.random.randint", lambda a, b: next(seq))
     out = roll_impl("2 d6 - 3")
     
     assert out["rolls"] == [1, 1]
