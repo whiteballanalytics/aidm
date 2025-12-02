@@ -84,7 +84,9 @@
                         
                             <!-- Dynamic World Description Panel -->
                             <div id="world-description-panel" class="world-preview">
-                                <p class="world-preview-empty">Select a world above to see its description.</p>
+                                <p style="color: #666; text-align: left; padding: 20px;">
+                                    Select a world above to see its description.
+                                </p>
                             </div>
                         </form>
                     </div>
@@ -164,39 +166,25 @@
                     </div>
                     
                     <div class="chat-input-area">
-                        <div class="chat-input-row">
-                            <div class="chat-input-left">
-                                <textarea 
-                                    id="chat-input" 
-                                    class="chat-input" 
-                                    placeholder="Describe your action..."
-                                    autocomplete="off"
-                                    rows="4"
-                                ></textarea>
-                                <button type="button" id="voice-mic-button" class="btn btn-voice" title="Click to speak" onclick="app.toggleVoice()">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                                        <line x1="12" y1="19" x2="12" y2="23"></line>
-                                        <line x1="8" y1="23" x2="16" y2="23"></line>
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="chat-send-buttons">
-                                <button type="button" id="send-as-character" class="btn btn-send-stacked" title="Send as a specific character">
-                                    As...
-                                </button>
-                                <button type="button" id="send-as-party" class="btn btn-send-stacked btn-primary" title="Send as the whole party">
-                                    As a party
-                                </button>
-                                <button type="button" id="send-ask-dm" class="btn btn-send-stacked" title="Ask the DM a question">
-                                    Ask the DM
-                                </button>
-                            </div>
-                        </div>
+                        <form id="chat-form" style="display: flex; width: 100%; gap: 15px; align-items: center;">
+                            <input 
+                                type="text" 
+                                id="chat-input" 
+                                class="chat-input" 
+                                placeholder="Describe your action..."
+                                autocomplete="off"
+                            >
+                            <button type="button" id="voice-mic-button" class="btn btn-voice" title="Click to speak" onclick="app.toggleVoice()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                                </svg>
+                            </button>
+                            <button type="submit" class="btn">Send</button>
+                        </form>
                         <div id="voice-status" class="voice-status"></div>
-                        <!-- Character popup (hidden by default) -->
-                        <div id="character-popup" class="character-popup" style="display: none;"></div>
                     </div>
                 </div>
 

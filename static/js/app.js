@@ -15,10 +15,6 @@ class DnDApp {
         // Characters loaded from database
         this.characters = [];
         
-        // Action mode: 'party', 'character', or 'ask_dm'
-        this.actionMode = 'party';
-        this.actionCharacterId = null;
-        
         this.init();
     }
 
@@ -156,97 +152,21 @@ class DnDApp {
         
         if (liveChars.length === 0) {
             container.innerHTML = '';
-        } else {
-            container.innerHTML = liveChars.map(char => `
-                <div class="live-character-card">
-                    <div class="live-character-info">
-                        <div class="live-character-name">${char.name}</div>
-                        <div class="live-character-class">${char.race} ${char.class} Level ${char.level}</div>
-                    </div>
-                    <div class="live-stat-box">
-                        <div class="live-stat-label">HP</div>
-                        <div class="live-stat-value">${char.currentHp}/${char.maxHp}</div>
-                    </div>
+            return;
+        }
+        
+        container.innerHTML = liveChars.map(char => `
+            <div class="live-character-card">
+                <div class="live-character-info">
+                    <div class="live-character-name">${char.name}</div>
+                    <div class="live-character-class">${char.race} ${char.class} Level ${char.level}</div>
                 </div>
-            `).join('');
-        }
-        
-        // Also update the action character selector
-        this.updateActionCharacterSelect();
-    }
-    
-    // Action Mode Methods
-    setActionMode(mode) {
-        this.actionMode = mode;
-        
-        // Reset character selection when switching away from character mode
-        if (mode !== 'character') {
-            this.actionCharacterId = null;
-        }
-    }
-    
-    showCharacterPopup(event) {
-        event.stopPropagation();
-        
-        const popup = document.getElementById('character-popup');
-        if (!popup) return;
-        
-        const liveChars = this.characters.filter(c => c.isLive);
-        
-        if (liveChars.length === 0) {
-            popup.innerHTML = '<div class="character-popup-empty">No characters in party. Add characters via Manage Characters.</div>';
-        } else {
-            popup.innerHTML = liveChars.map(char => `
-                <button type="button" class="character-popup-item" data-char-id="${char.id}" data-char-name="${char.name}">
-                    ${char.name} (${char.class})
-                </button>
-            `).join('');
-            
-            popup.querySelectorAll('.character-popup-item').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    this.actionMode = 'character';
-                    this.actionCharacterId = btn.dataset.charId;
-                    this.hideCharacterPopup();
-                    this.sendMessage();
-                });
-            });
-        }
-        
-        // Position popup above the "As..." button
-        const btn = document.getElementById('send-as-character');
-        const inputArea = document.querySelector('.chat-input-area');
-        if (btn && inputArea) {
-            const btnRect = btn.getBoundingClientRect();
-            const areaRect = inputArea.getBoundingClientRect();
-            
-            // Position popup to the left of the button, above the input area
-            popup.style.right = (areaRect.right - btnRect.right) + 'px';
-            popup.style.bottom = (areaRect.bottom - btnRect.top + 5) + 'px';
-            popup.style.left = 'auto';
-        }
-        
-        popup.style.display = 'block';
-    }
-    
-    hideCharacterPopup() {
-        const popup = document.getElementById('character-popup');
-        if (popup) {
-            popup.style.display = 'none';
-        }
-    }
-    
-    updateActionCharacterSelect() {
-        // Legacy function - kept for compatibility but popup is now used
-    }
-    
-    getActionContext() {
-        return {
-            action_mode: this.actionMode,
-            character_id: this.actionMode === 'character' ? this.actionCharacterId : null,
-            character_name: this.actionMode === 'character' && this.actionCharacterId 
-                ? this.characters.find(c => c.id === this.actionCharacterId)?.name 
-                : null
-        };
+                <div class="live-stat-box">
+                    <div class="live-stat-label">HP</div>
+                    <div class="live-stat-value">${char.currentHp}/${char.maxHp}</div>
+                </div>
+            </div>
+        `).join('');
     }
     
     confirmDeleteCharacter(charId, charName) {
@@ -691,22 +611,14 @@ class DnDApp {
             });
         }
 
-        // Chat input: Enter to send as party (default), Shift+Enter for newline
+        // Chat input enter key
         const chatInput = document.getElementById('chat-input');
         if (chatInput) {
-            chatInput.addEventListener('keydown', (e) => {
+            chatInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    // Enter always sends as party (default action)
-                    this.actionMode = 'party';
-                    this.actionCharacterId = null;
                     this.sendMessage();
                 }
-            });
-            
-            // Auto-expand textarea as user types
-            chatInput.addEventListener('input', () => {
-                this.autoExpandTextarea(chatInput);
             });
         }
         
@@ -721,41 +633,6 @@ class DnDApp {
         if (partyOverlay) {
             partyOverlay.addEventListener('click', () => this.togglePartyPanel());
         }
-        
-        // Stacked send buttons
-        const sendAsParty = document.getElementById('send-as-party');
-        if (sendAsParty) {
-            sendAsParty.addEventListener('click', () => {
-                this.actionMode = 'party';
-                this.actionCharacterId = null;
-                this.sendMessage();
-            });
-        }
-        
-        const sendAskDm = document.getElementById('send-ask-dm');
-        if (sendAskDm) {
-            sendAskDm.addEventListener('click', () => {
-                this.actionMode = 'ask_dm';
-                this.actionCharacterId = null;
-                this.sendMessage();
-            });
-        }
-        
-        const sendAsCharacter = document.getElementById('send-as-character');
-        if (sendAsCharacter) {
-            sendAsCharacter.addEventListener('click', (e) => {
-                this.showCharacterPopup(e);
-            });
-        }
-        
-        // Close character popup on outside click
-        document.addEventListener('click', (e) => {
-            const popup = document.getElementById('character-popup');
-            const asBtn = document.getElementById('send-as-character');
-            if (popup && !popup.contains(e.target) && e.target !== asBtn) {
-                this.hideCharacterPopup();
-            }
-        });
     }
 
     showTab(tabName) {
@@ -817,7 +694,7 @@ class DnDApp {
         if (!panel) return;
         
         if (!worldName) {
-            panel.innerHTML = '<p class="world-preview-empty">Select a world above to see its description</p>';
+            panel.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Select a world above to see its description</p>';
             return;
         }
 
@@ -825,19 +702,19 @@ class DnDApp {
         const world = this.worlds[worldName];
         if (world && world.description) {
             panel.innerHTML = `
-                <div class="world-preview-content">
-                    <h4 class="world-preview-title">${worldName}</h4>
-                    <p class="world-preview-description">${world.description}</p>
-                    <div class="world-preview-features">
+                <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <h4 style="margin-top: 0; color: #2c3e50;">${worldName}</h4>
+                    <p style="margin-bottom: 15px;">${world.description}</p>
+                    <div>
                         <strong>Key Features:</strong>
-                        <ul>
+                        <ul style="margin: 10px 0 0 20px;">
                             ${world.features ? world.features.map(feature => `<li>${feature}</li>`).join('') : '<li>No features available</li>'}
                         </ul>
                     </div>
                 </div>
             `;
         } else {
-            panel.innerHTML = '<p class="world-preview-empty">World description not available</p>';
+            panel.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">World description not available</p>';
         }
     }
 
@@ -1994,7 +1871,6 @@ class DnDApp {
         
         const message = input.value.trim();
         input.value = '';
-        this.resetTextareaHeight();
         
         this._sendMessageInternal(message);
     }
@@ -2005,16 +1881,12 @@ class DnDApp {
         const input = document.getElementById('chat-input');
         if (input) {
             input.value = '';
-            this.resetTextareaHeight();
         }
         
         this._sendMessageInternal(text.trim());
     }
     
     _sendMessageInternal(message) {
-        // Get action context (mode and optional character)
-        const actionContext = this.getActionContext();
-        
         // Add user message to chat
         this.addChatMessage('user', message);
         
@@ -2023,26 +1895,22 @@ class DnDApp {
             this.websocket.send(JSON.stringify({
                 type: 'play_turn',
                 input: message,
-                user_id: 'web_user',
-                ...actionContext
+                user_id: 'web_user'
             }));
         } else {
             // Fallback to REST API
-            this.sendMessageREST(message, actionContext);
+            this.sendMessageREST(message);
         }
     }
 
-    async sendMessageREST(message, actionContext = null) {
+    async sendMessageREST(message) {
         try {
-            const payload = {
-                input: message,
-                user_id: 'web_user',
-                ...(actionContext || this.getActionContext())
-            };
-            
             const result = await this.apiRequest(`/api/campaigns/${this.currentCampaign.campaign_id}/sessions/${this.currentSession.session_id}/turn`, {
                 method: 'POST',
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    input: message,
+                    user_id: 'web_user'
+                })
             });
             
             this.addChatMessage('dm', result.dm_response, result.intent_used);
@@ -2052,21 +1920,6 @@ class DnDApp {
             }
         } catch (error) {
             this.addChatMessage('system', 'Failed to send message. Please try again.');
-        }
-    }
-
-    autoExpandTextarea(textarea) {
-        const MIN_HEIGHT = 100;
-        const MAX_HEIGHT = 200;
-        textarea.style.height = 'auto';
-        const newHeight = Math.max(MIN_HEIGHT, Math.min(textarea.scrollHeight, MAX_HEIGHT));
-        textarea.style.height = newHeight + 'px';
-    }
-    
-    resetTextareaHeight() {
-        const input = document.getElementById('chat-input');
-        if (input) {
-            input.style.height = '100px';
         }
     }
 
