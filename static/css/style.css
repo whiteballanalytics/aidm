@@ -351,43 +351,120 @@ body {
     color: #0066cc;
 }
 
-/* World preview styles - matches .form-textarea exactly */
+/* World preview styles - rock-solid, matches .form-textarea exactly */
 .world-preview {
     width: 100%;
     min-height: 100px;
     padding: 12px 15px;
     border: 2px solid var(--border-color);
     border-radius: 8px;
+    font-family: inherit;
     font-size: 1em;
-    background: var(--card-bg);
+    line-height: 1.5;
+    text-align: left;
+    background-color: var(--card-bg) !important;
     color: var(--text-primary);
+    box-sizing: border-box;
 }
 
-.world-preview-placeholder {
-    color: #6c757d;
+/* Empty state placeholder - matches .form-textarea::placeholder */
+.world-preview .world-preview-empty {
+    display: block;
     margin: 0;
+    padding: 0;
+    font-family: inherit;
+    font-size: 1em;
+    line-height: 1.5;
+    text-align: left;
+    color: #6c757d;
+    background: transparent;
 }
 
-.world-preview-content {
+/* Content container - hidden by default */
+.world-preview .world-preview-content {
+    display: none;
+    margin: 0;
+    padding: 0;
+    font-family: inherit;
+    font-size: 1em;
+    line-height: 1.5;
+    text-align: left;
+    color: var(--text-primary);
+    background: transparent;
+}
+
+/* When content is present: show content, hide empty state */
+.world-preview.has-content .world-preview-empty {
+    display: none;
+}
+
+.world-preview.has-content .world-preview-content {
+    display: block;
+}
+
+/* World title - matches form-label styling */
+.world-preview .world-title {
+    margin: 0 0 10px 0;
+    padding: 0;
+    font-family: inherit;
+    font-size: 1em;
+    font-weight: bold;
+    line-height: 1.5;
+    text-align: left;
+    color: var(--primary-accent);
+    background: transparent;
+}
+
+/* World description text */
+.world-preview .world-description {
+    margin: 0 0 15px 0;
+    padding: 0;
+    font-family: inherit;
+    font-size: 1em;
+    line-height: 1.5;
+    text-align: left;
+    color: var(--text-primary);
+    background: transparent;
+}
+
+/* Features section */
+.world-preview .world-features {
+    margin: 0;
+    padding: 0;
+    font-family: inherit;
+    font-size: 1em;
+    line-height: 1.5;
+    text-align: left;
+    color: var(--text-primary);
+    background: transparent;
+}
+
+.world-preview .world-features strong {
+    font-weight: bold;
     color: var(--text-primary);
 }
 
-.world-preview-content h4 {
-    margin: 0 0 10px 0;
-    color: var(--primary-accent);
-}
-
-.world-preview-content p {
-    margin: 0 0 15px 0;
-}
-
-.world-preview-content ul {
+.world-preview .world-features-list {
     margin: 10px 0 0 20px;
     padding: 0;
+    font-family: inherit;
+    font-size: 1em;
+    line-height: 1.5;
+    text-align: left;
+    color: var(--text-primary);
+    background: transparent;
+    list-style-type: disc;
 }
 
-.world-preview-content li {
+.world-preview .world-features-list li {
     margin-bottom: 5px;
+    padding: 0;
+    font-family: inherit;
+    font-size: 1em;
+    line-height: 1.5;
+    text-align: left;
+    color: var(--text-primary);
+    background: transparent;
 }
 
 /* Chat Interface */

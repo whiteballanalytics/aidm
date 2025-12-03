@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎲 D&D AI Dungeon Master</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=20251202-world-preview">
+    <link rel="stylesheet" href="/static/css/style.css?v=20251203-world-preview-fix">
 </head>
 <body>
     <div class="container">
@@ -82,9 +82,17 @@
                                 </div>
                             </div>
                         
-                            <!-- Dynamic World Description Panel -->
+                            <!-- World Description Panel - Fixed structure, CSS controls visibility -->
                             <div id="world-description-panel" class="world-preview">
-                                <p class="world-preview-placeholder">Select a world above to see its description.</p>
+                                <p class="world-preview-empty">Select a world above to see its description.</p>
+                                <div class="world-preview-content">
+                                    <h4 class="world-title"></h4>
+                                    <p class="world-description"></p>
+                                    <div class="world-features">
+                                        <strong>Key Features:</strong>
+                                        <ul class="world-features-list"></ul>
+                                    </div>
+                                </div>
                             </div>
                         </form>
                     </div>
