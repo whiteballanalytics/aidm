@@ -108,4 +108,16 @@ Technical Improvements | Create Agent Contracts Document
 New Epics              | Dialogue mode
 New Epics              | Multiplayer mode
 New Epics              | Async agents
-Technical Improvements | Homegrown ML models and SLMs
+Technical Improvements | Homegrown ML models and SLMs  
+
+---
+
+## Update 1.0
+
+**Agent guardrails:** Added a suite of unit tests and provided testing best practice documentation. Still need to work on integration tests and evals.
+
+**Dim brightness in World Review:** Done
+
+**Expand the input field:** Tried but failed to implement successfully.
+
+**Multiple buttons for sending messages:** Tried but failed to implement successfully.
