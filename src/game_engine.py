@@ -26,6 +26,7 @@ from library.vectorstores import LoreSearch, MemorySearch, get_campaign_mem_stor
 from library.session_tools import SessionReview
 from library.prompts import load_prompt
 from library.logginghooks import LocalRunLogger, jl_write
+from library.retry import run_with_retry
 
 # Load environment
 load_dotenv()
@@ -335,7 +336,7 @@ async def create_campaign(world_collection: str, user_description: str, campaign
     
     # Generate campaign content
     try:
-        result = await Runner.run(dm_new_campaign_agent, user_description, hooks=LocalRunLogger())
+        result = await run_with_retry(Runner.run, dm_new_campaign_agent, user_description, hooks=LocalRunLogger())
         jl_write({"event": "new_campaign_generated", "campaign_id": campaign_id, "ts": time.time()})
     except Exception as e:
         raise Exception(f"Error generating campaign: {e}")
@@ -468,7 +469,7 @@ async def create_session(campaign_id: str) -> dict:
     
     # Generate session content
     try:
-        result = await Runner.run(dm_new_session_agent, session_request, hooks=LocalRunLogger())
+        result = await run_with_retry(Runner.run, dm_new_session_agent, session_request, hooks=LocalRunLogger())
     except Exception as e:
         raise Exception(f"Error generating session: {e}")
     
@@ -634,7 +635,7 @@ async def generate_post_session_analysis(campaign_id: str, session: dict) -> str
         """).strip()
         
         # Run analysis agent
-        result = await Runner.run(post_session_agent, analysis_request)
+        result = await run_with_retry(Runner.run, post_session_agent, analysis_request)
         
         # Extract analysis from result
         analysis = result.final_output if hasattr(result, 'final_output') else str(result)
@@ -795,7 +796,7 @@ async def play_turn(campaign_id: str, session_id: str, user_input: str, user_id:
     else:
         # Legacy single-agent path
         try:
-            result = await Runner.run(dm_agent, dm_input, hooks=LocalRunLogger())
+            result = await run_with_retry(Runner.run, dm_agent, dm_input, hooks=LocalRunLogger())
         except Exception as e:
             raise Exception(f"Error getting DM response: {e}")
         
