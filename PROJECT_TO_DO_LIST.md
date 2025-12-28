@@ -68,9 +68,9 @@ Minor UX Features      | Expand the input field
 Major Features         | Better combat initiation
 Major Features         | Improve opening readouts
 Major Features         | Multiple buttons for sending messages
-Technical Improvements | Retry logic for transient LLM failures
-Technical Improvements | Add JSON Response Validation
-Technical Improvements | Comprehensive Game Logic Test Suite
+Technical Improvements | Retry logic for transient LLM failures ✅ DONE
+Technical Improvements | Add JSON Response Validation ✅ DONE
+Technical Improvements | Comprehensive Game Logic Test Suite (partial - 138 tests)
 Technical Improvements | Create Integration/Eval Tests for Multi-Agent Routing
 Technical Improvements | Better Metrics Collection
 Technical Improvements | Error Handling Guide for developers
@@ -98,7 +98,7 @@ Technical Improvements | Productionise
 New Epics              | Combat mode
 New Epics              | Involve the user in dice rolls
 New Epics              | Rules retriever
-Technical Improvements | Implement Token Budget Framework
+Technical Improvements | Implement Token Budget Framework ✅ DONE
 Technical Improvements | Define Agent Response Types
 Technical Improvements | Structured Validation / Agent Contracts
 Technical Improvements | Agent guardrails
