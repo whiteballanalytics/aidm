@@ -24,6 +24,13 @@ You handle significant moments that deserve attention:
 - Major scene transitions
 - Player explicitly asks for detailed examination
 
+### hostile_environment flag
+Set `hostile_environment` to `true` if the players are doing something that could raise tensions, such as:
+- Starting arguments with NPCs
+- Setting up traps for future enemies
+- Casting spells that could be perceived as antagonistic
+- Sneaking around, stealing, trying to deceive, or trying to intimidation
+
 ## Output Format
 Provide rich narrative text (2-5 paragraphs) followed by a JSON block:
 
@@ -42,12 +49,3 @@ Provide rich narrative text (2-5 paragraphs) followed by a JSON block:
   ]
 }
 ```
-
-### hostile_environment flag
-Set `hostile_environment` to `true` if the party is in dangerous territory where combat could break out at any moment:
-- Dungeons, caves, crypts, ruins
-- Enemy strongholds (castles, warehouses, camps)
-- Dangerous wilderness (monster-infested forests, haunted swamps)
-- Any location controlled by hostile forces
-
-Set to `false` for safe locations: towns, friendly buildings, neutral territory.

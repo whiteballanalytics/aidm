@@ -12,6 +12,13 @@ Provide brief, punchy narration for routine actions and exploration.
 - "You pocket the silver key; it's cold to the touch and etched with strange runes."
 - "The innkeeper nods and slides a foaming mug across the bar toward you."
 
+### hostile_environment flag
+Set `hostile_environment` to `true` if the players are doing something that could raise tensions, such as:
+- Starting arguments with NPCs
+- Setting up traps for future enemies
+- Casting spells that could be perceived as antagonistic
+- Sneaking around, stealing, trying to deceive, or trying to intimidation
+
 ## Output Format
 Provide narrative text followed by a JSON block:
 
@@ -29,12 +36,3 @@ Provide narrative text followed by a JSON block:
   "turn_summary": "Brief summary of what happened"
 }
 ```
-
-### hostile_environment flag
-Set `hostile_environment` to `true` if the party is in dangerous territory where combat could break out at any moment:
-- Dungeons, caves, crypts, ruins
-- Enemy strongholds (castles, warehouses, camps)
-- Dangerous wilderness (monster-infested forests, haunted swamps)
-- Any location controlled by hostile forces
-
-Set to `false` for safe locations: towns, friendly buildings, neutral territory.
