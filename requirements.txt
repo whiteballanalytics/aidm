@@ -53,3 +53,4 @@ pypdf
 cffi
 pytest
 pytest-asyncio
+tiktoken
