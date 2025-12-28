@@ -61,6 +61,7 @@ The system is built around a multi-agent orchestration pattern, featuring specia
 - **Environment Variables**: For sensitive configurations like OpenAI API keys.
 
 ### Recent Changes
+- **December 2025**: Added Token Budget Framework (`src/library/token_budget.py`) with per-agent context size limits (1K-8K tokens) using tiktoken. Enforced in `build_agent_context()` with automatic trimming and logging. Environment variable overrides available (e.g., `TOKEN_BUDGET_ROUTER=500`).
 - **December 2025**: Consolidated `main.py` into `game_engine.py` - all game logic, utility functions, and models now live in `game_engine.py`. The legacy console runner (`main.py`) was deprecated and removed.
 
 ### Testing
@@ -77,6 +78,7 @@ The system is built around a multi-agent orchestration pattern, featuring specia
     - `test_sessions.py`: Session lifecycle (load_session, list_sessions, get_active_session, close_session)
     - `test_campaigns.py`: Campaign management (load_campaign, list_campaigns, update_last_played)
     - `test_config.py`: Configuration and logging (get_available_worlds, jl_write)
+    - `test_token_budget.py`: Token budget framework (count_tokens, trim_to_budget, enforce_budget)
 - **Design Decisions**:
     - Tests document actual game engine behavior (not theoretical specs)
     - Every test has a one-sentence docstring with function name and summary
