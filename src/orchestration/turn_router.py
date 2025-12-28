@@ -11,15 +11,17 @@ from agents import Runner, Agent
 from library.logginghooks import LocalRunLogger
 from library.eval_logger import log_router_prompt
 from src.game_engine import extract_update_payload, strip_json_block, extract_narrative_from_runresult
+from src.library.token_budget import TokenBudget
 
 
 def build_agent_context(
     agent_type: str,
     session_context: Dict[str, Any],
-    user_input: str
+    user_input: str,
+    enforce_budget: bool = True
 ) -> str:
     """
-    Build context tailored to each agent type.
+    Build context tailored to each agent type, with optional token budget enforcement.
     
     Different agents need different levels of context, for example:
     - router needs minimal context (recent recap only) to classify intent quickly
@@ -29,6 +31,7 @@ def build_agent_context(
         agent_type: Type of agent requesting context (e.g., "router", "narrative_short")
         session_context: Dictionary containing various context objects
         user_input: The player's input text
+        enforce_budget: Whether to enforce token budgets (default: True)
     
     Returns:
         Formatted context string appropriate for the agent type
@@ -36,57 +39,52 @@ def build_agent_context(
     recent_recap = session_context.get("recent_recap", "")
     
     if agent_type == "router":
-        # Router only needs recent recap to classify intent quickly
-        return recent_recap or "(No recent history)"
+        context = recent_recap or "(No recent history)"
     
     elif agent_type in ("narrative_short", "narrative_long"):
-        # Narrative agents need full DM context
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "qa_rules":
-        # Rules QA agents need full DM context
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "npc_dialogue":
-        # NPC Dialogue needs full context to understand the NPC's personality and the scene
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "combat_designer":
-        # Combat Designer needs full context to design appropriate encounters
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "qa_situation":
-        # Situation QA agents need full DM context
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "travel":
-        # Travel agents need full DM context
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "gameplay":
-        # Gameplay agents need full DM context
-        # Debatable - we should try to make this more efficient later
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     else:
-        # Default: return full DM context
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
+    
+    if enforce_budget:
+        context, metadata = TokenBudget.enforce_budget(agent_type, context)
+    
+    return context
 
 
 async def orchestrate_turn(
@@ -139,38 +137,36 @@ Context (recent events):
         confidence = "low"
         note = "Router failed, defaulting to short narrative"
     else:
-        # Parse router response
-        router_text = (
-            getattr(router_result, "final_output", None)
-            or getattr(router_result, "output_text", None)
-            or getattr(router_result, "content", None)
-            or str(router_result)
-        )
+        # With structured outputs, final_output is already a RouterIntent Pydantic model
+        router_output = router_result.final_output
         
-        # Router returns bare JSON (not fenced), so try direct parsing first
-        router_data = None
-        
-        # Try to parse as direct JSON
-        try:
-            # Clean up the text and try to parse
-            cleaned_text = router_text.strip()
-            router_data = json.loads(cleaned_text)
-        except json.JSONDecodeError:
-            # Fallback to fenced block extraction if direct parsing fails
-            router_data = extract_update_payload(router_text)
-        
-        # Log raw router output for debugging
-        print(f"[ROUTER RAW OUTPUT] {router_text[:200]}...")
-        
-        if not router_data or "intent" not in router_data:
-            # Fallback if router doesn't return valid JSON
-            intent = "narrative_short"
-            confidence = "low"
-            note = f"Router returned invalid format (got: {router_text[:100]}), defaulting to short narrative"
+        # Check if we got a valid structured response
+        if hasattr(router_output, 'intent'):
+            # Structured output - RouterIntent model
+            intent = router_output.intent
+            confidence = router_output.confidence
+            note = router_output.note
+            print(f"[ROUTER STRUCTURED OUTPUT] intent={intent}, confidence={confidence}")
         else:
-            intent = router_data.get("intent", "narrative_short")
-            confidence = router_data.get("confidence", "medium")
-            note = router_data.get("note", "")
+            # Fallback: try legacy JSON parsing for backwards compatibility
+            router_text = str(router_output)
+            print(f"[ROUTER RAW OUTPUT] {router_text[:200]}...")
+            
+            router_data = None
+            try:
+                cleaned_text = router_text.strip()
+                router_data = json.loads(cleaned_text)
+            except json.JSONDecodeError:
+                router_data = extract_update_payload(router_text)
+            
+            if not router_data or "intent" not in router_data:
+                intent = "narrative_short"
+                confidence = "low"
+                note = f"Router returned invalid format (got: {router_text[:100]}), defaulting to short narrative"
+            else:
+                intent = router_data.get("intent", "narrative_short")
+                confidence = router_data.get("confidence", "medium")
+                note = router_data.get("note", "")
     
     # Log routing decision
     print(f"[ROUTER] Intent: {intent}, Confidence: {confidence}, Note: {note}")

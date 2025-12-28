@@ -121,3 +121,39 @@ Technical Improvements | Homegrown ML models and SLMs
 **Expand the input field:** Tried but failed to implement successfully.
 
 **Multiple buttons for sending messages:** Tried but failed to implement successfully.
+
+---
+
+## Update 1.1
+
+### Completed items from roadmap:
+
+**Implement Token Budget Framework:** ✅ DONE (was in "Most likely next")
+- Created `src/library/token_budget.py` with a TokenBudget class
+- Uses tiktoken (`cl100k_base` encoding) for accurate OpenAI token counting
+- Provides per-agent budgets: router (1K), narrative_short (6K), narrative_long (8K), qa_rules (5K), qa_situation (5K), npc_dialogue (6K), combat_designer (8K), travel (6K), gameplay (7K)
+- Automatically trims oversized context while preserving recent content (most relevant for D&D gameplay)
+- Supports environment variable overrides (e.g., `TOKEN_BUDGET_ROUTER=500`)
+- Logs warnings when context exceeds budget
+- Integrated into `build_agent_context()` in `turn_router.py` with automatic enforcement
+- Added 21 unit tests in `test_token_budget.py`
+
+**Add JSON Response Validation:** ✅ DONE (was in "Necessary for MVP")
+- Created `src/library/response_models.py` with Pydantic models: RouterIntent, ScenePatch, MemoryWrite, DiceRollResult
+- Updated router agent in `game_engine.py` to use `output_type=RouterIntent` for guaranteed valid JSON responses (OpenAI Structured Outputs)
+- Updated `turn_router.py` to handle structured RouterIntent objects directly (with fallback to legacy JSON parsing for backwards compatibility)
+- Added schema warmup routine in `run_server.py` that pre-caches schemas at server startup to avoid 10-60s first-request latency
+- Added 16 unit tests in `test_response_models.py` for model validation
+
+**Comprehensive Game Logic Test Suite:** ✅ PARTIAL (was in "Necessary for MVP")
+- Test suite expanded from 78 to 115 tests
+- Added test modules for token_budget.py and response_models.py
+- Still need integration tests and evals
+
+### Test suite status:
+All 115 unit tests pass.
+
+### Next steps:
+1. Monitor real session contexts post-deployment to tune per-agent budgets
+2. Monitor production router logs to confirm structured outputs remain stable
+3. Extend structured-output coverage to remaining agents (e.g., scene patch flows) when ready
