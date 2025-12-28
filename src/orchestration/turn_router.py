@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any
 from agents import Runner, Agent
 from library.logginghooks import LocalRunLogger
 from library.eval_logger import log_router_prompt
+from library.retry import run_with_retry
 from src.game_engine import extract_update_payload, strip_json_block, extract_narrative_from_runresult
 from src.library.token_budget import TokenBudget
 
@@ -129,7 +130,7 @@ Context (recent events):
     log_router_prompt(router_prompt, user_input, session_id)
     
     try:
-        router_result = await Runner.run(router_agent, router_prompt, hooks=LocalRunLogger())
+        router_result = await run_with_retry(Runner.run, router_agent, router_prompt, hooks=LocalRunLogger())
     except Exception as e:
         # Fallback to narrative_short on router failure
         print(f"Router failed: {e}, defaulting to narrative_short")
@@ -195,7 +196,7 @@ Context (recent events):
     
     # Run specialist agent
     try:
-        result = await Runner.run(specialist_agent, specialist_input, hooks=LocalRunLogger())
+        result = await run_with_retry(Runner.run, specialist_agent, specialist_input, hooks=LocalRunLogger())
     except Exception as e:
         raise Exception(f"Error from {intent} agent: {e}")
     

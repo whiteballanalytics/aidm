@@ -61,6 +61,7 @@ The system is built around a multi-agent orchestration pattern, featuring specia
 - **Environment Variables**: For sensitive configurations like OpenAI API keys.
 
 ### Recent Changes
+- **December 2025**: Added retry logic for transient LLM failures (`src/library/retry.py`). Uses exponential backoff (1s→2s→4s, max 8s) with automatic retries for rate limits, timeouts, and server errors. All 6 `Runner.run` call sites wrapped. 23 unit tests added.
 - **December 2025**: Added JSON Response Validation using OpenAI Structured Outputs. Router agent now uses `output_type=RouterIntent` for guaranteed valid JSON responses. Schema warmup routine pre-caches schemas at server startup to avoid first-request latency. Response models defined in `src/library/response_models.py`.
 - **December 2025**: Added Token Budget Framework (`src/library/token_budget.py`) with per-agent context size limits (1K-8K tokens) using tiktoken. Enforced in `build_agent_context()` with automatic trimming and logging. Environment variable overrides available (e.g., `TOKEN_BUDGET_ROUTER=500`).
 - **December 2025**: Consolidated `main.py` into `game_engine.py` - all game logic, utility functions, and models now live in `game_engine.py`. The legacy console runner (`main.py`) was deprecated and removed.
@@ -81,6 +82,7 @@ The system is built around a multi-agent orchestration pattern, featuring specia
     - `test_config.py`: Configuration and logging (get_available_worlds, jl_write)
     - `test_token_budget.py`: Token budget framework (count_tokens, trim_to_budget, enforce_budget)
     - `test_response_models.py`: Pydantic response models (RouterIntent, ScenePatch, MemoryWrite, DiceRollResult)
+    - `test_retry.py`: Retry logic for transient LLM failures (run_with_retry, is_transient_error, exponential backoff)
 - **Design Decisions**:
     - Tests document actual game engine behavior (not theoretical specs)
     - Every test has a one-sentence docstring with function name and summary

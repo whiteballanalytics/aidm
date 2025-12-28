@@ -68,9 +68,9 @@ Minor UX Features      | Expand the input field
 Major Features         | Better combat initiation
 Major Features         | Improve opening readouts
 Major Features         | Multiple buttons for sending messages
-Technical Improvements | Retry logic for transient LLM failures
-Technical Improvements | Add JSON Response Validation
-Technical Improvements | Comprehensive Game Logic Test Suite
+Technical Improvements | Retry logic for transient LLM failures ✅ DONE
+Technical Improvements | Add JSON Response Validation ✅ DONE
+Technical Improvements | Comprehensive Game Logic Test Suite (partial - 138 tests)
 Technical Improvements | Create Integration/Eval Tests for Multi-Agent Routing
 Technical Improvements | Better Metrics Collection
 Technical Improvements | Error Handling Guide for developers
@@ -98,7 +98,7 @@ Technical Improvements | Productionise
 New Epics              | Combat mode
 New Epics              | Involve the user in dice rolls
 New Epics              | Rules retriever
-Technical Improvements | Implement Token Budget Framework
+Technical Improvements | Implement Token Budget Framework ✅ DONE
 Technical Improvements | Define Agent Response Types
 Technical Improvements | Structured Validation / Agent Contracts
 Technical Improvements | Agent guardrails
@@ -150,10 +150,20 @@ Technical Improvements | Homegrown ML models and SLMs
 - Added test modules for token_budget.py and response_models.py
 - Still need integration tests and evals
 
+**Retry logic for transient LLM failures:** ✅ DONE (was in "Necessary for MVP")
+- Created `src/library/retry.py` with `run_with_retry()` and `@retry_on_transient` decorator
+- Uses exponential backoff: 1s → 2s → 4s (capped at 8s max)
+- Retries on transient errors only: rate limits (429), timeouts, connection errors, server errors (500/502/503/504)
+- Non-transient errors (auth, bad request) fail immediately without retry
+- Logging: warnings for each retry attempt, errors for max-retries-exceeded or non-transient failures
+- Wrapped all 6 `Runner.run` call sites in `game_engine.py` and `turn_router.py`
+- Added 23 unit tests in `test_retry.py` covering all scenarios
+
 ### Test suite status:
-All 115 unit tests pass.
+All 138 unit tests pass (115 + 23 new).
 
 ### Next steps:
 1. Monitor real session contexts post-deployment to tune per-agent budgets
 2. Monitor production router logs to confirm structured outputs remain stable
 3. Extend structured-output coverage to remaining agents (e.g., scene patch flows) when ready
+4. Monitor production logs for retry frequency and tune thresholds as needed
