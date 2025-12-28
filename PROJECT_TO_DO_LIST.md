@@ -136,3 +136,20 @@ Technical Improvements | Homegrown ML models and SLMs
 Integrated into `build_agent_context()` in `turn_router.py` with automatic enforcement. Added 21 unit tests in `test_token_budget.py`. All 99 tests pass.
 
 **Next step:** Monitor real session contexts post-deployment to tune per-agent budgets based on actual usage patterns.
+
+---
+
+## Update 1.2
+
+**Add JSON Response Validation:** Done. Implemented using OpenAI's Structured Outputs feature:
+- Created `src/library/response_models.py` with Pydantic models: RouterIntent, ScenePatch, MemoryWrite, DiceRollResult
+- Updated router agent in `game_engine.py` to use `output_type=RouterIntent` for guaranteed valid JSON responses
+- Updated `turn_router.py` to handle structured RouterIntent objects directly (with fallback to legacy JSON parsing for backwards compatibility)
+- Added schema warmup routine in `run_server.py` that pre-caches schemas at server startup to avoid 10-60s first-request latency
+- Added 16 unit tests in `test_response_models.py` for model validation
+
+All 115 tests pass. Schema warmup runs successfully at startup.
+
+**Next steps:**
+1. Monitor production router logs to confirm structured outputs remain stable
+2. Extend structured-output coverage to remaining agents (e.g., scene patch flows) when ready
