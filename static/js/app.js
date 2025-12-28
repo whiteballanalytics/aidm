@@ -693,28 +693,35 @@ class DnDApp {
         const panel = document.getElementById('world-description-panel');
         if (!panel) return;
         
+        const emptyState = panel.querySelector('.world-preview-empty');
+        const contentState = panel.querySelector('.world-preview-content');
+        const titleEl = panel.querySelector('.world-title');
+        const descEl = panel.querySelector('.world-description');
+        const featuresListEl = panel.querySelector('.world-features-list');
+        
         if (!worldName) {
-            panel.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Select a world above to see its description</p>';
+            panel.classList.remove('has-content');
+            if (emptyState) emptyState.textContent = 'Select a world above to see its description.';
             return;
         }
 
-        // Get world data from loaded worlds (now includes descriptions and features from API)
         const world = this.worlds[worldName];
         if (world && world.description) {
-            panel.innerHTML = `
-                <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                    <h4 style="margin-top: 0; color: #2c3e50;">${worldName}</h4>
-                    <p style="margin-bottom: 15px;">${world.description}</p>
-                    <div>
-                        <strong>Key Features:</strong>
-                        <ul style="margin: 10px 0 0 20px;">
-                            ${world.features ? world.features.map(feature => `<li>${feature}</li>`).join('') : '<li>No features available</li>'}
-                        </ul>
-                    </div>
-                </div>
-            `;
+            panel.classList.add('has-content');
+            if (titleEl) titleEl.textContent = worldName;
+            if (descEl) descEl.textContent = world.description;
+            if (featuresListEl) {
+                featuresListEl.innerHTML = '';
+                const features = world.features || ['No features available'];
+                features.forEach(feature => {
+                    const li = document.createElement('li');
+                    li.textContent = feature;
+                    featuresListEl.appendChild(li);
+                });
+            }
         } else {
-            panel.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">World description not available</p>';
+            panel.classList.remove('has-content');
+            if (emptyState) emptyState.textContent = 'World description not available.';
         }
     }
 

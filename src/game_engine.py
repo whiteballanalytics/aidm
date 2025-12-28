@@ -89,6 +89,29 @@ def get_openai_client():
     
     return client
 
+# Dice roller - module level for testability and reuse
+def roll_impl(formula: str) -> dict:
+    """
+    Dice roller for game mechanics. It returns the full results of the dice.
+    This helps in cases where a player might be allow to re-roll some dice.
+
+    Args:
+        formula: Dice roll formula as a string, e.g. "3d6+5".
+            - Format: "<number of dice>d<dice sides>[+/-modifier]"
+            - Examples: "2d20", "1d8-1", "4d6+3"
+            - Do NOT use words or spelled-out numbers (e.g. "Three D6 plus five" is invalid).
+
+    Returns:
+        dict with keys: rolls (list of ints), mod (int), total (int), or error (str) if formula is invalid.
+    """
+    m = re.fullmatch(r"(\d+)d(\d+)([+-]\d+)?", formula.replace(" ", ""))
+    if not m:
+        return {"error": "Bad formula"}
+    n, sides, mod = int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)
+    rolls = [random.randint(1, sides) for _ in range(n)]
+    total = sum(rolls) + mod
+    return {"rolls": rolls, "mod": mod, "total": total}
+
 # Initialize agents and tools
 def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCoast", campaign_outline: str = ""):
     """
@@ -148,29 +171,7 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     review_function = session_review.as_function()
     review_last_session = function_tool(name_override="ReviewLastSession")(review_function)
     
-    # Dice roller
-    def roll_impl(formula: str) -> dict:
-        """
-        Dice roller for game mechanics. It returns the full results of the dice.
-        This helps in cases where a player might be allow to re-roll some dice.
-
-        Args:
-            formula: Dice roll formula as a string, e.g. "3d6+5".
-                - Format: "<number of dice>d<dice sides>[+/-modifier]"
-                - Examples: "2d20", "1d8-1", "4d6+3"
-                - Do NOT use words or spelled-out numbers (e.g. "Three D6 plus five" is invalid).
-
-        Returns:
-            dict with keys: rolls (list of ints), mod (int), total (int), or error (str) if formula is invalid.
-        """
-        m = re.fullmatch(r"(\d+)d(\d+)([+-]\d+)?", formula.replace(" ", ""))
-        if not m:
-            return {"error": "Bad formula"}
-        n, sides, mod = int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)
-        rolls = [random.randint(1, sides) for _ in range(n)]
-        total = sum(rolls) + mod
-        return {"rolls": rolls, "mod": mod, "total": total}
-    
+    # Dice roller tool (uses module-level roll_impl)
     roll = function_tool(name_override="rollDice")(roll_impl)
     
     # ------------------------------------------------------------------------------
@@ -932,6 +933,11 @@ def merge_scene_patch(scene: SceneState, patch: dict[str, Any]) -> SceneState:
         if v is not None:
             data[k] = v
     return SceneState(**data)
+
+def clip_recap(prev: str, turn_summary: str, limit_chars: int = 4000) -> str:
+    """Keep recap short and fresh by trimming from the front when over limit."""
+    rec = (prev + " " + (turn_summary or "")).strip()
+    return rec[-limit_chars:] if len(rec) > limit_chars else rec
 
 # Available worlds function
 def get_available_worlds() -> dict:

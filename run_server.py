@@ -27,10 +27,8 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from game_engine import (
     create_campaign, load_campaign, list_campaigns, update_last_played,
     create_session, load_session, list_sessions, get_active_session, close_session,
-    play_turn, get_available_worlds
+    play_turn, get_available_worlds, strip_json_block, extract_narrative_from_runresult
 )
-from main import strip_json_block
-from game_engine import extract_narrative_from_runresult
 
 # Import character management module
 from characters import (

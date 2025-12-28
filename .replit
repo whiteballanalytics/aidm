@@ -36,6 +36,10 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
+localPort = 32933
+externalPort = 3001
+
+[[ports]]
 localPort = 33953
 externalPort = 3000
 
@@ -48,3 +52,6 @@ run = ["python", "run_server.py"]
 [userenv.shared]
 USE_MULTI_AGENT_DM = "true"
 VOICE_TTS_ENABLED = "true"
+
+[userenv.development]
+EVAL_LOGGING_ENABLED = "true"
