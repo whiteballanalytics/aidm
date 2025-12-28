@@ -137,38 +137,36 @@ Context (recent events):
         confidence = "low"
         note = "Router failed, defaulting to short narrative"
     else:
-        # Parse router response
-        router_text = (
-            getattr(router_result, "final_output", None)
-            or getattr(router_result, "output_text", None)
-            or getattr(router_result, "content", None)
-            or str(router_result)
-        )
+        # With structured outputs, final_output is already a RouterIntent Pydantic model
+        router_output = router_result.final_output
         
-        # Router returns bare JSON (not fenced), so try direct parsing first
-        router_data = None
-        
-        # Try to parse as direct JSON
-        try:
-            # Clean up the text and try to parse
-            cleaned_text = router_text.strip()
-            router_data = json.loads(cleaned_text)
-        except json.JSONDecodeError:
-            # Fallback to fenced block extraction if direct parsing fails
-            router_data = extract_update_payload(router_text)
-        
-        # Log raw router output for debugging
-        print(f"[ROUTER RAW OUTPUT] {router_text[:200]}...")
-        
-        if not router_data or "intent" not in router_data:
-            # Fallback if router doesn't return valid JSON
-            intent = "narrative_short"
-            confidence = "low"
-            note = f"Router returned invalid format (got: {router_text[:100]}), defaulting to short narrative"
+        # Check if we got a valid structured response
+        if hasattr(router_output, 'intent'):
+            # Structured output - RouterIntent model
+            intent = router_output.intent
+            confidence = router_output.confidence
+            note = router_output.note
+            print(f"[ROUTER STRUCTURED OUTPUT] intent={intent}, confidence={confidence}")
         else:
-            intent = router_data.get("intent", "narrative_short")
-            confidence = router_data.get("confidence", "medium")
-            note = router_data.get("note", "")
+            # Fallback: try legacy JSON parsing for backwards compatibility
+            router_text = str(router_output)
+            print(f"[ROUTER RAW OUTPUT] {router_text[:200]}...")
+            
+            router_data = None
+            try:
+                cleaned_text = router_text.strip()
+                router_data = json.loads(cleaned_text)
+            except json.JSONDecodeError:
+                router_data = extract_update_payload(router_text)
+            
+            if not router_data or "intent" not in router_data:
+                intent = "narrative_short"
+                confidence = "low"
+                note = f"Router returned invalid format (got: {router_text[:100]}), defaulting to short narrative"
+            else:
+                intent = router_data.get("intent", "narrative_short")
+                confidence = router_data.get("confidence", "medium")
+                note = router_data.get("note", "")
     
     # Log routing decision
     print(f"[ROUTER] Intent: {intent}, Confidence: {confidence}, Note: {note}")

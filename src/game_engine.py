@@ -225,12 +225,16 @@ def setup_agents_for_campaign(campaign_id: str, world_collection: str = "SwordCo
     travel_prompt = load_prompt("system", "dm_travel.md")
     gameplay_prompt = load_prompt("system", "dm_gameplay.md")
     
-    # Router agent (no tools, just classification)
+    # Import response models for structured outputs
+    from src.library.response_models import RouterIntent
+    
+    # Router agent (no tools, just classification with structured output)
     router_agent = Agent(
         name="DM Router",
         instructions=router_prompt,
         tools=[],
-        model="gpt-4o-mini"
+        model="gpt-4o-mini",
+        output_type=RouterIntent
     )
     
     # Narrative agents (full tool access)

@@ -50,6 +50,9 @@ from voice import (
     is_intent_speakable,
 )
 
+# Import for schema warmup
+from agents import Agent, Runner
+
 
 def initialize_voice():
     """Initialize voice controller with TTS providers."""
@@ -60,6 +63,49 @@ def initialize_voice():
 
 
 voice_controller = initialize_voice()
+
+
+async def warmup_structured_output_schemas():
+    """
+    Pre-warm OpenAI's structured output schema cache at startup.
+    
+    This runs a dummy request through each agent that uses structured outputs
+    to trigger schema compilation. After the first request, subsequent requests
+    have no added latency.
+    """
+    from src.library.response_models import RouterIntent
+    import openai
+    
+    print("🔥 Warming up structured output schemas...")
+    
+    agent_key = os.environ.get("OPENAI_API_KEY_AGENT")
+    if not agent_key:
+        print("⚠️ Schema warmup skipped (OPENAI_API_KEY_AGENT not set)")
+        print("   First real request may have ~10-60s extra latency")
+        return
+    
+    os.environ["OPENAI_API_KEY"] = agent_key
+    openai.api_key = agent_key
+    
+    try:
+        warmup_agent = Agent(
+            name="Schema Warmup",
+            instructions="Classify this input. Respond with intent='narrative_short', confidence='high', note='warmup'",
+            tools=[],
+            model="gpt-4o-mini",
+            output_type=RouterIntent
+        )
+        
+        result = await Runner.run(warmup_agent, "This is a warmup request to pre-cache the schema.")
+        
+        if hasattr(result.final_output, 'intent'):
+            print(f"✅ Schema warmup complete (RouterIntent schema cached)")
+        else:
+            print("⚠️ Schema warmup completed but response was unexpected")
+            
+    except Exception as e:
+        print(f"⚠️ Schema warmup failed (non-critical): {e}")
+        print("   First real request may have ~10-60s extra latency")
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -636,8 +682,14 @@ routes = [
     WebSocketRoute('/ws/{campaign_id}/{session_id}', websocket_endpoint),
 ]
 
-# Create Starlette application
-app = Starlette(routes=routes)
+# Lifecycle events
+async def on_startup():
+    """Run tasks on server startup."""
+    await warmup_structured_output_schemas()
+
+
+# Create Starlette application with lifecycle
+app = Starlette(routes=routes, on_startup=[on_startup])
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
