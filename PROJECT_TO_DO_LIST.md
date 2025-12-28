@@ -121,3 +121,18 @@ Technical Improvements | Homegrown ML models and SLMs
 **Expand the input field:** Tried but failed to implement successfully.
 
 **Multiple buttons for sending messages:** Tried but failed to implement successfully.
+
+---
+
+## Update 1.1
+
+**Implement Token Budget Framework:** Done. Created `src/library/token_budget.py` with a TokenBudget class that:
+- Uses tiktoken (`cl100k_base` encoding) for accurate OpenAI token counting
+- Provides per-agent budgets: router (1K), narrative_short (6K), narrative_long (8K), qa_rules (5K), qa_situation (5K), npc_dialogue (6K), combat_designer (8K), travel (6K), gameplay (7K)
+- Automatically trims oversized context while preserving recent content (most relevant for D&D gameplay)
+- Supports environment variable overrides (e.g., `TOKEN_BUDGET_ROUTER=500`)
+- Logs warnings when context exceeds budget
+
+Integrated into `build_agent_context()` in `turn_router.py` with automatic enforcement. Added 21 unit tests in `test_token_budget.py`. All 99 tests pass.
+
+**Next step:** Monitor real session contexts post-deployment to tune per-agent budgets based on actual usage patterns.
