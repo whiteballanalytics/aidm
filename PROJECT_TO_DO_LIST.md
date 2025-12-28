@@ -150,10 +150,20 @@ Technical Improvements | Homegrown ML models and SLMs
 - Added test modules for token_budget.py and response_models.py
 - Still need integration tests and evals
 
+**Retry logic for transient LLM failures:** ✅ DONE (was in "Necessary for MVP")
+- Created `src/library/retry.py` with `run_with_retry()` and `@retry_on_transient` decorator
+- Uses exponential backoff: 1s → 2s → 4s (capped at 8s max)
+- Retries on transient errors only: rate limits (429), timeouts, connection errors, server errors (500/502/503/504)
+- Non-transient errors (auth, bad request) fail immediately without retry
+- Logging: warnings for each retry attempt, errors for max-retries-exceeded or non-transient failures
+- Wrapped all 6 `Runner.run` call sites in `game_engine.py` and `turn_router.py`
+- Added 23 unit tests in `test_retry.py` covering all scenarios
+
 ### Test suite status:
-All 115 unit tests pass.
+All 138 unit tests pass (115 + 23 new).
 
 ### Next steps:
 1. Monitor real session contexts post-deployment to tune per-agent budgets
 2. Monitor production router logs to confirm structured outputs remain stable
 3. Extend structured-output coverage to remaining agents (e.g., scene patch flows) when ready
+4. Monitor production logs for retry frequency and tune thresholds as needed
