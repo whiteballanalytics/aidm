@@ -11,15 +11,17 @@ from agents import Runner, Agent
 from library.logginghooks import LocalRunLogger
 from library.eval_logger import log_router_prompt
 from src.game_engine import extract_update_payload, strip_json_block, extract_narrative_from_runresult
+from src.library.token_budget import TokenBudget
 
 
 def build_agent_context(
     agent_type: str,
     session_context: Dict[str, Any],
-    user_input: str
+    user_input: str,
+    enforce_budget: bool = True
 ) -> str:
     """
-    Build context tailored to each agent type.
+    Build context tailored to each agent type, with optional token budget enforcement.
     
     Different agents need different levels of context, for example:
     - router needs minimal context (recent recap only) to classify intent quickly
@@ -29,6 +31,7 @@ def build_agent_context(
         agent_type: Type of agent requesting context (e.g., "router", "narrative_short")
         session_context: Dictionary containing various context objects
         user_input: The player's input text
+        enforce_budget: Whether to enforce token budgets (default: True)
     
     Returns:
         Formatted context string appropriate for the agent type
@@ -36,57 +39,52 @@ def build_agent_context(
     recent_recap = session_context.get("recent_recap", "")
     
     if agent_type == "router":
-        # Router only needs recent recap to classify intent quickly
-        return recent_recap or "(No recent history)"
+        context = recent_recap or "(No recent history)"
     
     elif agent_type in ("narrative_short", "narrative_long"):
-        # Narrative agents need full DM context
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "qa_rules":
-        # Rules QA agents need full DM context
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "npc_dialogue":
-        # NPC Dialogue needs full context to understand the NPC's personality and the scene
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "combat_designer":
-        # Combat Designer needs full context to design appropriate encounters
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "qa_situation":
-        # Situation QA agents need full DM context
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "travel":
-        # Travel agents need full DM context
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     elif agent_type == "gameplay":
-        # Gameplay agents need full DM context
-        # Debatable - we should try to make this more efficient later
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
     
     else:
-        # Default: return full DM context
-        return f"""{session_context}
+        context = f"""{session_context}
 
 Player: {user_input}"""
+    
+    if enforce_budget:
+        context, metadata = TokenBudget.enforce_budget(agent_type, context)
+    
+    return context
 
 
 async def orchestrate_turn(
