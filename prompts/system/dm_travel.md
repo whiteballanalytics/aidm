@@ -43,7 +43,8 @@ Brief narrative text (1-3 sentences) + JSON:
     "region": "...",
     "specific_location": "New location name",
     "time_of_day": "...",
-    "participants": ["Who's there upon arrival"]
+    "participants": ["Who's there upon arrival"],
+    "hostile_environment": true/false
   },
   "memory_writes": [
     "Journey facts to remember",
@@ -52,5 +53,14 @@ Brief narrative text (1-3 sentences) + JSON:
   "turn_summary": "Player traveled from X to Y"
 }
 ```
+
+### hostile_environment flag
+Set `hostile_environment` to `true` if arriving in dangerous territory:
+- Dungeons, caves, crypts, ruins
+- Enemy strongholds (castles, warehouses, camps)
+- Dangerous wilderness (monster-infested forests, haunted swamps)
+- Any location controlled by hostile forces
+
+Set to `false` for safe locations: towns, friendly buildings, neutral territory.
 
 Get them where they're going efficiently.

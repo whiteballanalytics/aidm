@@ -73,6 +73,14 @@ class ScenePatch(BaseModel):
         default=None,
         description="Brief list of recent significant events"
     )
+    hostile_environment: Optional[bool] = Field(
+        default=None,
+        description="Whether the current location is hostile territory (dungeon, enemy base, dangerous wilderness, etc.)"
+    )
+    combat_plan: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Prepared combat encounter plan for potential combat scenarios"
+    )
 
 
 class MemoryWrite(BaseModel):

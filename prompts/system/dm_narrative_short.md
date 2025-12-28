@@ -20,7 +20,8 @@ Provide narrative text followed by a JSON block:
   "scene_state_patch": {
     "specific_location": "...",
     "participants": ["..."],
-    "time_of_day": "..."
+    "time_of_day": "...",
+    "hostile_environment": true/false
   },
   "memory_writes": [
     "Brief factual statement to remember"
@@ -28,3 +29,12 @@ Provide narrative text followed by a JSON block:
   "turn_summary": "Brief summary of what happened"
 }
 ```
+
+### hostile_environment flag
+Set `hostile_environment` to `true` if the party is in dangerous territory where combat could break out at any moment:
+- Dungeons, caves, crypts, ruins
+- Enemy strongholds (castles, warehouses, camps)
+- Dangerous wilderness (monster-infested forests, haunted swamps)
+- Any location controlled by hostile forces
+
+Set to `false` for safe locations: towns, friendly buildings, neutral territory.

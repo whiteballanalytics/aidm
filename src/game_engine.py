@@ -62,6 +62,18 @@ class SessionStatus(BaseModel):
     summary: str = ""
     session_plan: dict = Field(default_factory=dict)
 
+class CombatPlan(BaseModel):
+    """Prepared encounter data for potential combat."""
+    encounter_name: str = ""
+    encounter_summary: str = ""
+    encounter_role: str = ""  # filler, attrition, main_set_piece, boss
+    target_difficulty: str = ""  # Easy, Medium, Hard, Deadly
+    battlefield_and_mechanics: str = ""
+    tactics: str = ""
+    opponents: list[dict] = Field(default_factory=list)
+    prepared_for_npcs: list[str] = Field(default_factory=list)  # NPCs this plan was designed for
+    prepared_for_location: str = ""  # Location this plan was designed for
+
 class SceneState(BaseModel):
     time_of_day: str
     region: str
@@ -69,6 +81,8 @@ class SceneState(BaseModel):
     specific_location: str
     participants: list[str]
     exits: list[str]
+    hostile_environment: bool = False  # True if in dungeon, enemy territory, etc.
+    combat_plan: Optional[CombatPlan] = None  # Pre-designed encounter if combat is possible
 
 # Initialize OpenAI client
 def get_openai_client():

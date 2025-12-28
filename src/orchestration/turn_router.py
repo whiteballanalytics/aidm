@@ -5,6 +5,7 @@ This module routes player input to specialized agents based on intent classifica
 """
 
 import json
+import logging
 import os
 from typing import Optional, Dict, Any
 from agents import Runner, Agent
@@ -13,6 +14,9 @@ from library.eval_logger import log_router_prompt
 from library.retry import run_with_retry
 from src.game_engine import extract_update_payload, strip_json_block, extract_narrative_from_runresult
 from src.library.token_budget import TokenBudget
+from src.library.combat_readiness import check_combat_plan_validity, CombatPlanStatus
+
+logger = logging.getLogger(__name__)
 
 
 def build_agent_context(
@@ -86,6 +90,116 @@ Player: {user_input}"""
         context, metadata = TokenBudget.enforce_budget(agent_type, context)
     
     return context
+
+
+async def check_and_update_combat_plan(
+    session_context: Dict[str, Any],
+    update_payload: Dict[str, Any],
+    agents: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Check if combat plan needs updating and trigger combat_designer if needed.
+    
+    Args:
+        session_context: Current session context including scene_state
+        update_payload: Payload from specialist agent (may contain scene_state_patch)
+        agents: Dictionary of all initialized agents
+    
+    Returns:
+        Dict with action taken and optional new combat_plan
+    """
+    scene_state = session_context.get("scene_state", {})
+    scene_patch = update_payload.get("scene_state_patch", {})
+    
+    current_participants = scene_patch.get("participants") or scene_state.get("participants", [])
+    current_location = scene_patch.get("specific_location") or scene_state.get("specific_location", "")
+    
+    hostile_from_patch = scene_patch.get("hostile_environment")
+    hostile_from_state = scene_state.get("hostile_environment", False)
+    current_hostile = hostile_from_patch if hostile_from_patch is not None else hostile_from_state
+    
+    current_plan = scene_state.get("combat_plan")
+    if current_plan and hasattr(current_plan, 'model_dump'):
+        current_plan = current_plan.model_dump()
+    
+    status = check_combat_plan_validity(
+        participants=current_participants,
+        specific_location=current_location,
+        hostile_environment=current_hostile,
+        combat_plan=current_plan
+    )
+    
+    logger.info(f"[COMBAT READINESS] action={status.action}, reason={status.reason}")
+    
+    if status.action == "clear":
+        return {
+            "action": "clear",
+            "reason": status.reason,
+            "combat_plan": None
+        }
+    
+    if status.action == "update":
+        combat_designer = agents.get("combat_designer")
+        if not combat_designer:
+            logger.warning("combat_designer agent not available, skipping plan update")
+            return {
+                "action": "skip",
+                "reason": "combat_designer agent not available"
+            }
+        
+        context = build_agent_context("combat_designer", session_context, "")
+        update_prompt = f"""Prepare a combat encounter for the current scene.
+
+Current participants: {current_participants}
+Current location: {current_location}
+Hostile environment: {current_hostile}
+
+Design an encounter that accounts for these NPCs and this environment. This is background preparation - combat has not started yet, but we need to be ready if it does."""
+
+        try:
+            result = await run_with_retry(Runner.run, combat_designer, f"{context}\n\n{update_prompt}", hooks=LocalRunLogger())
+            
+            response_raw = (
+                getattr(result, "final_output", None)
+                or getattr(result, "output_text", None)
+                or str(result)
+            )
+            
+            combat_payload = extract_update_payload(str(response_raw)) or {}
+            
+            new_plan = {
+                "encounter_name": combat_payload.get("encounter_name", ""),
+                "encounter_summary": combat_payload.get("encounter_summary", ""),
+                "encounter_role": combat_payload.get("encounter_role", ""),
+                "target_difficulty": combat_payload.get("target_difficulty", ""),
+                "battlefield_and_mechanics": combat_payload.get("battlefield_and_mechanics", ""),
+                "tactics": combat_payload.get("tactics", ""),
+                "opponents": combat_payload.get("opponents", []),
+                "prepared_for_npcs": [p.lower().strip() for p in current_participants],
+                "prepared_for_location": current_location
+            }
+            
+            logger.info(f"[COMBAT PLAN UPDATED] {new_plan.get('encounter_name', 'unnamed')}")
+            
+            return {
+                "action": "update",
+                "reason": status.reason,
+                "combat_plan": new_plan
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to update combat plan: {e}")
+            return {
+                "action": "error",
+                "reason": f"Failed to update: {e}",
+                "combat_plan": current_plan
+            }
+    
+    return {
+        "action": "keep",
+        "reason": status.reason,
+        "combat_plan": current_plan
+    }
 
 
 async def orchestrate_turn(
@@ -213,10 +327,25 @@ Context (recent events):
     update_payload = extract_update_payload(specialist_response_clean) or {}
     dm_response = strip_json_block(specialist_response_clean)
     
+    # Step 3: Check combat plan validity after turn completes
+    combat_plan_action = await check_and_update_combat_plan(
+        session_context=session_context,
+        update_payload=update_payload,
+        agents=agents
+    )
+    
+    # Merge combat plan updates into scene_state_patch
+    if combat_plan_action["action"] in ("update", "clear"):
+        if "scene_state_patch" not in update_payload:
+            update_payload["scene_state_patch"] = {}
+        update_payload["scene_state_patch"]["combat_plan"] = combat_plan_action.get("combat_plan")
+        logger.info(f"[COMBAT PLAN] Merged {combat_plan_action['action']} into scene_state_patch")
+    
     # Return structured response
     return {
         "dm_response": dm_response,
         "update_payload": update_payload,
         "intent_used": intent,
-        "routing_note": note
+        "routing_note": note,
+        "combat_plan_action": combat_plan_action
     }

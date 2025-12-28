@@ -33,7 +33,8 @@ Provide rich narrative text (2-5 paragraphs) followed by a JSON block:
     "specific_location": "Detailed location name",
     "participants": ["NPCs and entities present"],
     "time_of_day": "...",
-    "exits": ["Available exits or paths"]
+    "exits": ["Available exits or paths"],
+    "hostile_environment": true/false
   },
   "memory_writes": [
     "Important facts to remember long-term",
@@ -41,3 +42,12 @@ Provide rich narrative text (2-5 paragraphs) followed by a JSON block:
   ]
 }
 ```
+
+### hostile_environment flag
+Set `hostile_environment` to `true` if the party is in dangerous territory where combat could break out at any moment:
+- Dungeons, caves, crypts, ruins
+- Enemy strongholds (castles, warehouses, camps)
+- Dangerous wilderness (monster-infested forests, haunted swamps)
+- Any location controlled by hostile forces
+
+Set to `false` for safe locations: towns, friendly buildings, neutral territory.
