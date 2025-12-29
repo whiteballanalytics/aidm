@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎲 D&D AI Dungeon Master</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=20251229-close-session-msg">
+    <link rel="stylesheet" href="/static/css/style.css?v=20251229-chat-input-resize">
 </head>
 <body>
     <div class="container">
@@ -172,14 +172,14 @@
                     </div>
                     
                     <div class="chat-input-area">
-                        <form id="chat-form" style="display: flex; width: 100%; gap: 15px; align-items: center;">
-                            <input 
-                                type="text" 
+                        <form id="chat-form" style="display: flex; width: 100%; gap: 15px; align-items: flex-end;">
+                            <textarea 
                                 id="chat-input" 
                                 class="chat-input" 
                                 placeholder="Describe your action..."
                                 autocomplete="off"
-                            >
+                                rows="3"
+                            ></textarea>
                             <button type="button" id="voice-mic-button" class="btn btn-voice" title="Click to speak" onclick="app.toggleVoice()">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
@@ -226,6 +226,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
     <script src="/static/js/voice_client.js?v=20251130-tts"></script>
-    <script src="/static/js/app.js?v=20251229-close-session-msg"></script>
+    <script src="/static/js/app.js?v=20251229-chat-input-resize"></script>
 </body>
 </html>
