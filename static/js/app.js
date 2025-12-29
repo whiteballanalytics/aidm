@@ -1591,7 +1591,7 @@ class DnDApp {
             <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center; padding: 20px;">
                 <div class="card" style="max-width: 400px; text-align: center;" onclick="event.stopPropagation()">
                     <h3>⚠️ Confirm Action</h3>
-                    <p style="margin: 20px 0; font-size: 1.1em;">${message}</p>
+                    <p style="margin: 20px 0; font-size: 1.1em; white-space: pre-line; text-align: left;">${message}</p>
                     
                     <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
                         <button class="btn btn-secondary">Cancel</button>
@@ -1617,7 +1617,7 @@ class DnDApp {
 
     async closeSession(sessionId) {
         this.showThemedConfirm(
-            'Are you sure you want to close this session? It cannot be reopened.',
+            'Are you sure you want to close this session?\n\nOnce closed, you won\'t be able to continue. Your progress will be saved, but you\'ll need to start a new session to keep playing.',
             async () => {
                 this.showLoading('Generating post-session analysis... this can take a few minutes');
                 try {
