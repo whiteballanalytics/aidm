@@ -17,7 +17,7 @@ Features that almost exclusively involve minor changes to the UI with a small am
 - **Review success/failure pop-ups:** There are a lot of these messages that appear in the interface - always temporarily - when a process completes successfully. For example, adding a character from DND Beyond or closing a session. Is this always necessary and can we make it more consistent when this is done and when it isn't.
 - **Refine "How to play" copy and formatting:** Improve the instructions panel on the Play Mode tab.
 - **Check for characters:** Check that the user has at least selected some characters in the Play Mode tab before allowing the user to interact via the chat interface.
-- **Expand the input field:** Expand the text field when players can type text on the Play mode tab so that it can handle longer messages.
+- **Expand the input field:** ✅ DONE - See Update 1.3
 
 ### Major Features
 Features that require significant overhauls - usually both backend and frontend changes working in tandem.
@@ -64,7 +64,7 @@ Agent guardrails
 ## Current Plan
 
 ### Necessary for MVP (pre-productionise)
-Minor UX Features      | Expand the input field
+Minor UX Features      | Expand the input field ✅ DONE
 Major Features         | Better combat initiation
 Major Features         | Improve opening readouts
 Major Features         | Multiple buttons for sending messages
@@ -118,7 +118,7 @@ Technical Improvements | Homegrown ML models and SLMs
 
 **Dim brightness in World Review:** Done
 
-**Expand the input field:** Tried but failed to implement successfully.
+**Expand the input field:** ✅ DONE - See Update 1.3 (previously failed, now resolved)
 
 **Multiple buttons for sending messages:** Tried but failed to implement successfully.
 
@@ -199,4 +199,12 @@ All 159 unit tests pass.
 - Updated confirmation dialog text in `static/js/app.js` to explain session closing implications
 - New message: "Are you sure you want to close this session? Once closed, you won't be able to continue. Your progress will be saved, but you'll need to start a new session to keep playing."
 - Added CSS styling (`white-space: pre-line; text-align: left;`) to modal for proper multi-line text rendering
-- Updated cache-busting version strings in `static/html/game.html` to force browser refresh of static assets
+
+**Expand the input field:** ✅ DONE (was in "Necessary for MVP")
+- Changed chat input from single-line `<input>` to 3-line `<textarea>` in `static/html/game.html`
+- Enter key still sends message, Shift+Enter adds new line (existing JS already supported this)
+- Updated CSS styling: reduced border-radius (25px → 15px), added `resize: none`, `font-family: inherit`, `line-height: 1.4`
+- Form alignment changed to `align-items: flex-end` so buttons align with bottom of textarea
+
+**Infrastructure fix:**
+- Added cache-busting version strings to `static/html/game.html` to force browser refresh of static assets
