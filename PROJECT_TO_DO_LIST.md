@@ -13,7 +13,7 @@ Features that almost exclusively involve minor changes to the UI with a small am
 - **Better JSON reader:** For the "View details (DM Only)" buttons on the Campaign Builder and Session Manager windows, improve the interface so that the JSON is easier to navigate and extends to a deeper level. Also make sure that the one on the Session Manager tab opens with the same width as the one on Campaign Builder.
 - **Dim brightness in World Review:** The colour scheme for the text field where the user can see World descriptions on the Campaing Builder tab is great. But as soon as a user selects a world it goes bright white, which we don't want.
 - **Improve progress hold sign:** When the web app is doing a task and wants to freeze the experience for the user, usually while it is waiting for LLM API calls to complete, the text is a bit hard to read at the moment. We could improve this, maybe even provide an interesting DnD-related animation, such as a bubbling potion.
-- **Improve "Close Session" message:** Improve the warning message that shows when a user clicks "Close Session" on the Session Manager tab. It should explain, very concisely, the implications of closing a session to the user - i.e. that they will no longer be able to return and progress play, they will need to start a new chat interface.
+- **Improve "Close Session" message:** ✅ DONE - See Update 1.3
 - **Review success/failure pop-ups:** There are a lot of these messages that appear in the interface - always temporarily - when a process completes successfully. For example, adding a character from DND Beyond or closing a session. Is this always necessary and can we make it more consistent when this is done and when it isn't.
 - **Refine "How to play" copy and formatting:** Improve the instructions panel on the Play Mode tab.
 - **Check for characters:** Check that the user has at least selected some characters in the Play Mode tab before allowing the user to interact via the chat interface.
@@ -167,3 +167,36 @@ All 138 unit tests pass (115 + 23 new).
 2. Monitor production router logs to confirm structured outputs remain stable
 3. Extend structured-output coverage to remaining agents (e.g., scene patch flows) when ready
 4. Monitor production logs for retry frequency and tune thresholds as needed
+
+---
+
+## Update 1.2
+
+**Better combat initiation:** ✅ DONE
+- Created Combat Readiness System (`src/library/combat_readiness.py`)
+- Runs every turn to evaluate whether existing combat plans are still valid
+- Proactively triggers combat_designer subagent when conflict is anticipated
+- Combat plans persist between turns via scene_state in chat_history
+- Added 9 unit tests in `test_combat_readiness.py`
+
+**Token budget adjustments:**
+- Increased router budget from 1K to 2K tokens to reduce aggressive trimming
+- Increased QA agents (qa_rules, qa_situation) from 5K to 6K tokens
+
+**Bug fixes:**
+- Fixed SceneState attribute access (changed `.get()` to proper attribute access)
+- Fixed logging visibility (switched from logger.info to print() for console output)
+- Fixed scene_state persistence (now loads from previous turn's chat_history)
+
+### Test suite status:
+All 159 unit tests pass.
+
+---
+
+## Update 1.3
+
+**Improve "Close Session" message:** ✅ DONE (was in "Minor UX Features")
+- Updated confirmation dialog text in `static/js/app.js` to explain session closing implications
+- New message: "Are you sure you want to close this session? Once closed, you won't be able to continue. Your progress will be saved, but you'll need to start a new session to keep playing."
+- Added CSS styling (`white-space: pre-line; text-align: left;`) to modal for proper multi-line text rendering
+- Updated cache-busting version strings in `static/html/game.html` to force browser refresh of static assets
